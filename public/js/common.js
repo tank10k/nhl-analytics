@@ -43,10 +43,18 @@ export async function initSeasonSelect(select, onChange) {
     `<option value="${id}">${seasonLabel(id)}${id === d.current ? ' (current)' : ''}</option>`).join('');
   const want = new URLSearchParams(location.search).get('season');
   select.value = list.includes(want) ? want : d.current;
+  // Keep the chosen season when switching between pages.
+  const syncNav = () => document.querySelectorAll('.tabs a').forEach((a) => {
+    const u = new URL(a.getAttribute('href'), location.origin);
+    u.searchParams.set('season', select.value);
+    a.href = u.pathname + u.search;
+  });
+  syncNav();
   select.addEventListener('change', () => {
     const u = new URL(location.href);
     u.searchParams.set('season', select.value);
     history.replaceState(null, '', u);
+    syncNav();
     onChange(select.value);
   });
   return select.value;

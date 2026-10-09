@@ -205,7 +205,7 @@ async function handleApi(url) {
     rows = [...rows].sort((a, b) => dir * ((a[sort] ?? 0) - (b[sort] ?? 0)) || (b.points ?? 0) - (a.points ?? 0));
 
     const total = rows.length;
-    const limit = Math.min(Math.max(parseInt(q.get('limit'), 10) || 50, 1), 1000);
+    const limit = Math.min(Math.max(parseInt(q.get('limit'), 10) || 50, 1), 2000);
     return { season, gameType, total, players: rows.slice(0, limit) };
   }
 

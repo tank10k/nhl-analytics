@@ -73,19 +73,20 @@ export function renderBars(container, opts) {
     }).observe(container._plot);
     container._built = true;
   }
-  container.querySelector('.legend').innerHTML = opts.series.map((s) =>
+  // A single series needs no legend (the panel title names it).
+  container.querySelector('.legend').innerHTML = opts.series.length < 2 ? '' : opts.series.map((s) =>
     `<span class="key"><i style="background:${s.color}"></i>${s.name}</span>`).join('');
   draw(container);
 }
 
 function draw(container) {
-  const { rows, series, mode, label, rowH = 22 } = container._opts;
+  const { rows, series, mode, label, rowH = 22, labelWidth = 44 } = container._opts;
   const plot = container._plot;
   plot.textContent = '';
   if (!rows.length) { plot.innerHTML = '<p class="empty">No data for this selection.</p>'; return; }
 
   const W = Math.max(plot.clientWidth, 300);
-  const m = { top: 26, left: 44, right: 74, bottom: 4 };
+  const m = { top: 26, left: labelWidth, right: 74, bottom: 4 };
   const barH = 14, innerW = W - m.left - m.right, gap = 2;
   const H = m.top + rows.length * rowH + m.bottom;
 
@@ -146,5 +147,85 @@ function draw(container) {
     root.append(hit);
   });
 
+  plot.append(root);
+}
+
+// ---- scatter ----
+// opts: { points:[{x,y,label,tip}], xLabel, yLabel, label, labelTop }
+// Labels the `labelTop` highest points (skipping ones that would collide); hover shows nearby points.
+export function renderScatter(container, opts) {
+  container._sopts = opts;
+  if (!container._sbuilt) {
+    container.innerHTML = '<div class="plot"></div>';
+    container._plot = container.firstChild;
+    let lastW = 0;
+    new ResizeObserver(() => {
+      const w = container._plot.clientWidth;
+      if (w !== lastW) { lastW = w; drawScatter(container); }
+    }).observe(container._plot);
+    container._sbuilt = true;
+  }
+  drawScatter(container);
+}
+
+function drawScatter(container) {
+  const { points, xLabel, yLabel, label, labelTop = 0 } = container._sopts;
+  const plot = container._plot;
+  plot.textContent = '';
+  if (!points.length) { plot.innerHTML = '<p class="empty">No data for this selection.</p>'; return; }
+
+  const W = Math.max(plot.clientWidth, 300), H = W < 520 ? 300 : 380;
+  const m = { top: 12, right: 20, bottom: 44, left: 48 };
+  const iw = W - m.left - m.right, ih = H - m.top - m.bottom;
+  const xt = niceTicks(Math.max(1, ...points.map((p) => p.x)), 6);
+  const yt = niceTicks(Math.max(1, ...points.map((p) => p.y)), 5);
+  const X = (v) => m.left + (v / xt.max) * iw;
+  const Y = (v) => m.top + ih - (v / yt.max) * ih;
+
+  const root = svg('svg', { width: W, height: H, viewBox: `0 0 ${W} ${H}`, role: 'img', 'aria-label': label || 'Scatter chart' });
+  for (const t of yt.ticks) {
+    root.append(
+      svg('line', { x1: m.left, x2: W - m.right, y1: Y(t), y2: Y(t), class: t === 0 ? 'axis' : 'grid' }),
+      svg('text', { x: m.left - 8, y: Y(t) + 4, 'text-anchor': 'end', class: 'tick' }, String(t)),
+    );
+  }
+  for (const t of xt.ticks) {
+    root.append(
+      svg('line', { x1: X(t), x2: X(t), y1: m.top, y2: m.top + ih, class: t === 0 ? 'axis' : 'grid' }),
+      svg('text', { x: X(t), y: m.top + ih + 16, 'text-anchor': 'middle', class: 'tick' }, String(t)),
+    );
+  }
+  root.append(
+    svg('text', { x: m.left + iw / 2, y: H - 6, 'text-anchor': 'middle', class: 'axtitle' }, xLabel),
+    svg('text', { transform: `translate(12 ${m.top + ih / 2}) rotate(-90)`, 'text-anchor': 'middle', class: 'axtitle' }, yLabel),
+  );
+
+  const pts = points.map((p) => ({ ...p, cx: X(p.x), cy: Y(p.y) }));
+  for (const p of pts) root.append(svg('circle', { cx: p.cx, cy: p.cy, r: 5, class: 'dot' }));
+
+  // selective direct labels: top points by y, then x, skipping collisions
+  const placed = [];
+  for (const p of [...pts].sort((a, b) => b.y - a.y || b.x - a.x)) {
+    if (placed.length >= labelTop) break;
+    if (placed.some((q) => Math.abs(q.cx - p.cx) < 90 && Math.abs(q.cy - p.cy) < 14)) continue;
+    const flip = p.cx + 10 + p.label.length * 6.2 > W - 4;
+    root.append(svg('text', { x: p.cx + (flip ? -9 : 9), y: p.cy + 4, 'text-anchor': flip ? 'end' : 'start', class: 'dotlabel' }, p.label));
+    placed.push(p);
+  }
+
+  const ring = svg('circle', { r: 9, class: 'ring', display: 'none' });
+  const hit = svg('rect', { x: m.left, y: m.top, width: iw, height: ih, fill: 'transparent' });
+  hit.addEventListener('pointermove', (e) => {
+    const r = root.getBoundingClientRect(), px = e.clientX - r.left, py = e.clientY - r.top;
+    let best = null, bd = Infinity;
+    for (const p of pts) { const d = (p.cx - px) ** 2 + (p.cy - py) ** 2; if (d < bd) { bd = d; best = p; } }
+    if (!best || bd > 16 * 16) { ring.setAttribute('display', 'none'); tip.hide(); return; }
+    const group = pts.filter((p) => Math.abs(p.cx - best.cx) < 3 && Math.abs(p.cy - best.cy) < 3);
+    ring.setAttribute('cx', best.cx); ring.setAttribute('cy', best.cy); ring.removeAttribute('display');
+    tip.show(group.slice(0, 4).map((p) => p.tip).join('<hr>') +
+      (group.length > 4 ? `<div class="r"><span>+${group.length - 4} more at this spot</span></div>` : ''), e);
+  });
+  hit.addEventListener('pointerleave', () => { ring.setAttribute('display', 'none'); tip.hide(); });
+  root.append(ring, hit);
   plot.append(root);
 }

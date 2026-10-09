@@ -106,3 +106,15 @@ td.hi { font-weight: 700; }
 .banner { padding: 12px 14px; border-radius: 10px; background: var(--surface); border: 1px solid var(--neg); display: flex; gap: 12px; align-items: center; }
 .banner[hidden] { display: none; }
 .loading { color: var(--ink2); }
+
+/* players page + scatter */
+input[type="search"] { font: inherit; color: var(--ink); background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 6px 10px; min-width: 190px; }
+input[type="search"]:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.legend:empty { display: none; }
+svg .axtitle { fill: var(--ink2); font-size: 12px; }
+svg .dot { fill: var(--s1); fill-opacity: .7; stroke: var(--surface); stroke-width: 1.5; }
+svg .dotlabel { fill: var(--ink2); font-size: 11px; }
+svg .ring { fill: none; stroke: var(--ink); stroke-width: 2; pointer-events: none; }
+.tooltip hr { border: 0; border-top: 1px solid var(--grid); margin: 8px 0; }
+.more { display: flex; justify-content: center; align-items: center; gap: 12px; padding-top: 12px; color: var(--ink2); }
+.tile .v span { font-weight: 700; }

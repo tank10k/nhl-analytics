@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NHL Analytics – Players</title>
+<script>try{var t=localStorage.getItem('theme');if(t)document.documentElement.dataset.theme=t}catch(e){}</script>
+<link rel="stylesheet" href="/css/app.css">
+</head>
+<body>
+<header class="top">
+  <div class="wrap bar">
+    <div class="brand">NHL Analytics</div>
+    <nav class="tabs" aria-label="Pages">
+      <a class="tab" href="/">Teams</a>
+      <a class="tab active" href="/players.html" aria-current="page">Players</a>
+    </nav>
+    <div class="spacer"></div>
+    <label class="field">Season <select id="season" aria-label="Season"></select></label>
+    <button class="btn" id="theme" type="button"></button>
+  </div>
+</header>
+
+<main class="wrap">
+  <div class="filters">
+    <label class="field">Games <select id="gameType"><option value="2">Regular season</option><option value="3">Playoffs</option></select></label>
+    <label class="field">Team <select id="team"></select></label>
+    <label class="field">Position
+      <select id="pos">
+        <option value="all">All skaters</option>
+        <option value="F">Forwards</option>
+        <option value="C">Centers</option>
+        <option value="L">Left wings</option>
+        <option value="R">Right wings</option>
+        <option value="D">Defense</option>
+      </select>
+    </label>
+    <label class="field">Min GP
+      <select id="minGp"><option value="1">Any</option><option value="5">5</option><option value="10">10</option><option value="20">20</option><option value="40">40</option><option value="60">60</option></select>
+    </label>
+    <input id="q" type="search" placeholder="Search player…" aria-label="Search player">
+  </div>
+
+  <div id="error" class="banner" hidden>
+    <span id="errorText"></span>
+    <button class="btn" id="retry" type="button">Retry</button>
+  </div>
+  <p id="loading" class="loading">Loading players…</p>
+
+  <section id="tiles" class="tiles" aria-label="Leaders"></section>
+
+  <section class="charts">
+    <div class="panel">
+      <h2>Points leaders</h2>
+      <p class="sub">Top 15 by points, split into goals and assists.</p>
+      <div id="chartPoints"></div>
+    </div>
+    <div class="panel">
+      <h2>Shots on goal leaders</h2>
+      <p class="sub">Top 15 by shots on goal.</p>
+      <div id="chartShots"></div>
+    </div>
+  </section>
+
+  <section class="panel">
+    <h2>Shots vs. goals</h2>
+    <p class="sub">Each dot is a player with at least one shot. Higher above the pack means a more efficient finisher. Hover for details.</p>
+    <div id="chartScatter"></div>
+  </section>
+
+  <section class="panel">
+    <h2>Player stats</h2>
+    <p class="sub" id="count">Click a column to sort.</p>
+    <div class="tablewrap"><table id="table"></table></div>
+    <div class="more" id="more" hidden></div>
+  </section>
+</main>
+
+<script type="module" src="/js/players.js"></script>
+</body>
+</html>
