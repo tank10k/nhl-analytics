@@ -1,114 +1,143 @@
 # NHL Analytics
 
-A local web app for exploring NHL team and player stats with charts. It runs on your own computer, pulls data from the NHL's public (unofficial) JSON APIs, and shows it in the browser as standings, leaderboards, scatter plots and season-trend lines. Personal, non-commercial use.
+A local web app for exploring NHL team and player stats with charts. It runs on your own computer, pulls data from the NHL's public (unofficial) JSON APIs, and shows it in a dark, broadcast-style interface. Personal, non-commercial use.
 
-**Status:** Steps 1 to 4 of the build plan are done (data server, Teams page, Players page, Player detail page). Steps 1 and 2 have been checked against live NHL data; steps 3 and 4 were built and tested against mock data and still need a pass on live data (see [Known limitations](#known-limitations)).
+**Status:** Version 2 is being rebuilt in steps (React + TypeScript + ECharts). Step 1, the foundation, is done: app shell, design system, search, disk cache, and the League overview page. The original app is still available at `/legacy` until each part is replaced.
 
 ## Contents
 
 - [Quick start](#quick-start)
 - [What's in the app](#whats-in-the-app)
+- [Revamp plan](#revamp-plan)
 - [Project structure](#project-structure)
-- [How it was built](#how-it-was-built)
 - [Architecture](#architecture)
+- [Design system](#design-system)
 - [API reference](#api-reference)
-- [Charts module](#charts-module)
-- [Design and accessibility](#design-and-accessibility)
 - [Testing without the NHL API](#testing-without-the-nhl-api)
 - [Known limitations](#known-limitations)
-- [Roadmap](#roadmap)
 - [Updating GitHub](#updating-github)
 
 ## Quick start
 
-Requires Node 18 or newer. There are no dependencies, so no `npm install` is needed.
+Requires **Node 22.13 or newer** (Node 24 recommended).
 
 ```
-npm start
+npm install
+npm run dev
 ```
 
-Then open http://localhost:3000. To use another port: `PORT=4000 npm start` (macOS/Linux) or `set PORT=4000 && npm start` (Windows cmd).
+Then open **http://localhost:5173**. `npm run dev` starts two things together: the data server (`server.js`, port 3000, restarts itself when you edit it) and the Vite dev server (port 5173, reloads the page instantly when you edit anything in `src/`). Ctrl+C stops both.
 
-The server only listens on `127.0.0.1`, so it is not reachable from other machines.
+To run it the "finished" way instead, without the dev tools:
+
+```
+npm run build      # compiles the React app into dist/
+npm start          # serves everything from http://localhost:3000
+```
+
+Other commands: `npm run typecheck` checks the TypeScript without building.
+
+The server only listens on `127.0.0.1`, so it is not reachable from other machines. To use another port: `set PORT=4000 && npm start` (Windows cmd) or `$env:PORT=4000; npm start` (PowerShell).
 
 ## What's in the app
 
-All pages share a **season picker** (2005-06 to the current season) and a **theme button** (Auto follows your OS, or force Light/Dark). The chosen season is kept in the URL as `?season=20252026` and carried between pages.
-
-| URL | Page | What it shows |
+| Address | Page | Status |
 |---|---|---|
-| `/` | **Teams** | Four leader tiles (most points, best goal differential, top offense, top defense); a stacked wins/losses/OT-losses chart and a goal-differential chart for every team; a sortable standings table (GP, W, L, OTL, PTS, P%, RW, GF, GA, DIFF, home/road/last-10 records, streak). Filter by conference or division; reorder the charts by points, wins, point %, goal differential or goals for. |
-| `/players.html` | **Players** | Leader tiles (points, goals, assists, shots, with a "+N tied" note); top-15 charts for points (split into goals and assists) and shots on goal; a shots-vs-goals scatter plot with hover details; a sortable, paginated table (G, A, PTS, P/GP, SOG, SH%, +/-, PIM, TOI/G). Filter by regular season/playoffs, team, position, minimum games played, or search by name. |
-| `/player.html?id=ID` | **Player detail** | Reached by clicking a player's name. Season totals; a running-total trend line (points, goals, assists or shots) that can overlay a past season for comparison, with an option to match games played so a season in progress is compared at the same pace; goals and assists for every NHL season; a game-by-game log. |
+| `/` | **League overview.** A one-line summary of who leads the league and the scoring race; a team-strength chart (goals scored vs. allowed per game, team logos as markers, league averages splitting it into four quadrants, click a team to open it); a top-10 scoring leaders list (points, goals, assists, points per game) with team-colored bars; standings by division with a goal-differential bar and the playoff cut line. | Done (step 1) |
+| `/teams`, `/teams/TOR` | Teams hub and team pages themed in team colors | Step 4 |
+| `/players`, `/players/ID` | Leaderboards and player cards | Step 3 |
+| `/compare` | Side-by-side players or teams | Step 6 |
+| `/games` | Scoreboard, game flow, shot maps | Step 7 |
+| `/goalies` | Goalie leaderboards and cards | Step 8 |
+| `/legacy` | The original app (Teams, Players, Player detail) | Kept until replaced |
 
-Hover any chart row, dot or line for a tooltip with the full numbers behind it.
+Throughout the app:
+
+- **Search:** press **Ctrl+K** (or **/**) anywhere to jump to any player or team. Arrow keys to move, Enter to open.
+- **Season picker** (top right) covers 2005-06 to the current season. The season is kept in the address as `?season=20252026`, so any view can be bookmarked, and links between pages carry it along.
+- Sections not yet rebuilt show what's coming and link to the same view in the original app.
+
+## Revamp plan
+
+Each step is delivered, tested and pushed before the next one starts.
+
+1. **Foundation** *(done)*: Vite + React + TypeScript, design system, 32-team color map, app shell with sidebar and Ctrl+K search, SQLite disk cache, League overview page.
+2. **Data expansion:** player bio, league percentiles by position, team schedules and results, goalies, play-by-play shot data with a simple expected-goals (xG) model.
+3. **Player card + player page:** team-colored cards with bio, percentile ranks, last-10 sparkline, career arc, PNG export.
+4. **Teams hub + team pages:** points-pace race, home/road splits, rolling form, roster as cards.
+5. **Advanced charts:** shot maps and heat maps on a drawn rink, PDO and shot-share quadrants, standings bump chart.
+6. **Compare tool:** 2 to 3 players or teams with overlaid radar and trend lines.
+7. **Games:** scoreboard, game-flow chart, per-game shot map.
+8. **Goalies, then polish:** goalie cards, animations, performance, final README.
 
 ## Project structure
 
 ```
 nhl-analytics/
-├── server.js              Node server: proxies and caches the NHL APIs, serves /public
-├── package.json           npm start -> node server.js (no dependencies)
-├── .gitignore             node_modules, .env, logs, OS files
-├── README.md
-└── public/
-    ├── index.html         Teams page
-    ├── players.html       Players page
-    ├── player.html        Player detail page
-    ├── css/
-    │   └── app.css        All styles, light and dark theme tokens
-    └── js/
-        ├── common.js      Shared helpers: fetch wrapper, formatting, theme toggle, season picker
-        ├── charts.js      Reusable SVG charts: bars, scatter, lines, plus the shared tooltip
-        ├── teams.js       Teams page logic
-        ├── players.js     Players page logic
-        └── player.js      Player detail page logic
+├── server.js              Data server: proxies + caches the NHL APIs, serves the app
+├── package.json           Scripts and dependencies
+├── vite.config.mts        Vite: React plugin, dev proxy to server.js
+├── tsconfig.json          TypeScript settings
+├── index.html             Entry page for the React app
+├── scripts/
+│   └── dev.js             Runs server.js and Vite together for npm run dev
+├── static/                Files copied as-is into the build (favicon)
+├── src/                   The React app
+│   ├── main.tsx           Boots React and the router
+│   ├── App.tsx            Routes (which page shows at which address)
+│   ├── styles/global.css  Design tokens and all component styles
+│   ├── lib/
+│   │   ├── api.ts         Fetch helper + useApi() hook with a short client cache
+│   │   ├── season.tsx     Selected season (from the address) shared by every page
+│   │   ├── teams.ts       Team colors, readable accent color, dark logo helper
+│   │   ├── types.ts       Shapes of the /api responses
+│   │   └── format.ts      Number, record, percentage and time formatting
+│   ├── charts/
+│   │   ├── EChart.tsx     React wrapper around ECharts (resize, cleanup)
+│   │   └── theme.ts       The "broadcast" chart theme + tooltip helpers
+│   ├── components/        Shell (sidebar/top bar), CommandPalette (Ctrl+K), Panel,
+│   │                      TeamChip/TeamLogo/TeamStripe, Icons
+│   └── pages/
+│       ├── Home.tsx       League overview
+│       ├── home/          Its parts: StrengthQuadrant, Leaders, DivisionTables
+│       └── ComingSoon.tsx Placeholder for sections built in later steps
+├── public/                The original app (served at /legacy), unchanged
+├── dist/                  Built app (created by npm run build; not in git)
+└── data/                  cache.db, the disk cache (created on first run; not in git)
 ```
-
-## How it was built
-
-The app was built in small, testable steps, with each step delivered and pushed to GitHub before the next began. The aim was to keep every step small so changes only touch what is needed.
-
-### Planning decisions
-
-- **Data source.** Instead of scraping NHL.com, the app uses the same JSON APIs the NHL's own site uses: `api-web.nhle.com/v1` (standings, players, game logs) and `api.nhle.com/stats/rest` (full skater tables). They need no key. The NHL does not publish official documentation for them; the community reference is [Zmalski/NHL-API-Reference](https://github.com/Zmalski/NHL-API-Reference).
-- **A local server, not a pure browser app.** A small Node server sits between the browser and the NHL. It avoids browser cross-origin (CORS) problems, caches responses so the NHL isn't hit on every page load, and gives the frontend one consistent, trimmed-down API.
-- **No dependencies.** Node 18+ already has `fetch`, so the server uses only built-in modules. Nothing to install or keep updated.
-- **Past seasons from day one.** Every route takes a `season` parameter from the start, so comparing seasons never needed a rewrite.
-
-### Build steps
-
-1. **Data server.** `server.js` with cached, validated endpoints for standings, skaters, player profile and game log, plus a seasons list. The real response shapes were checked first, including confirming that the stats report exposes `shots` for shots on goal. Includes stale-on-error caching, request de-duplication, input validation, and path-traversal protection for static files.
-2. **Teams page.** Standings table, leader tiles, and two charts sharing one team order. Added the shared helpers (`common.js`) and the first version of the chart module.
-3. **Players page.** Reused the bar chart, added a scatter chart, and added client-side filtering, sorting and pagination. The server's skater limit cap was raised to 2000 so a whole season loads in one request.
-4. **Player detail page.** Added a multi-series line chart with a crosshair tooltip and a dashed comparison line, plus season-comparison and "match games played" controls. Player names in the Players table now link here.
-
-### Decisions worth knowing about
-
-- **Charts are plain SVG, not Chart.js.** The environment this was built in could not download npm packages, and drawing the charts directly meant they could be rendered and visually checked during development. It also keeps the app dependency-free. Chart.js can still be added later for more complex charts (see [Roadmap](#roadmap)).
-- **Charts follow a written method.** Chart form, color assignment, mark styling, hover behavior and accessibility were chosen against a data-visualization checklist, and the color palette was run through a validator rather than judged by eye (details in [Design and accessibility](#design-and-accessibility)).
-- **The Players page loads every skater once** and filters, searches and sorts in the browser. That makes filtering instant and keeps server logic simple, at the cost of a larger first load (about 900 players).
-- **Traded players** appear once, with all their teams listed (for example `TOR/MTL`); the team filter matches any of them. On the detail page, a season split across teams is combined into one row.
-- **Bugs caught during testing** that are now fixed: a misaligned team column in the standings table, and the "None" option in the season-comparison picker being reset back to the default.
 
 ## Architecture
 
 ```
-Browser  ->  localhost:3000 (server.js)  ->  api-web.nhle.com / api.nhle.com
-              |- /api/*  cached JSON, trimmed to the fields the pages use
-              '- /*      static files from public/
+Browser ──> Vite :5173 (dev only) ──> server.js :3000 ──> api-web.nhle.com / api.nhle.com
+                                       ├─ /api/*   cached JSON, trimmed to what the pages use
+                                       ├─ /legacy  original app (public/)
+                                       └─ /*       built React app (dist/)
 ```
 
 **Server (`server.js`)**
-- GET only, bound to `127.0.0.1`.
-- `getJson()` caches by URL, shares one in-flight request between callers, times out after 15 seconds, and serves the last cached copy if the NHL is unreachable.
+- Still zero-dependency: Node's built-in `fetch` and, new in v2, Node's built-in SQLite (`node:sqlite`).
+- `getJson()` checks memory, then the disk cache (`data/cache.db`), then the NHL. It shares one in-flight request between callers, times out after 15 seconds, and serves the last cached copy if the NHL is unreachable.
+- Because the cache is on disk, past seasons are fetched once and then load instantly, even after a restart. Delete the `data` folder to clear it. If SQLite isn't available, the server prints a note and uses memory only.
 - Cache lifetimes: 5 minutes for the current season, 24 hours for past seasons, 10 minutes for player profiles, 6 hours for the season list.
-- The current season is derived from the date: the new season starts on 1 September (for example, October 2026 is `20262027`).
-- For past seasons, standings are fetched as of that season's final standings date, taken from the NHL's season list.
+- Static files: the built app first, then the original app's files, then the React app's `index.html` for its own page addresses (such as `/teams/TOR`). Paths that escape those folders are refused.
 
-**Frontend**
-- Plain HTML, CSS and ES modules; no build step. Each page has one script that fetches from `/api/*`, keeps filter state in module variables, and re-renders on change.
-- Theme choice is the only thing stored in the browser (`localStorage`, wrapped in try/catch so the app works if storage is blocked).
+**Frontend (`src/`)**
+- React 19 with React Router. Each page asks for data through `useApi('/api/...')`, which shares requests between components and keeps responses for 2 minutes, so moving between pages doesn't refetch.
+- Charts use Apache ECharts through one wrapper (`charts/EChart.tsx`) and one theme (`charts/theme.ts`), so every chart has the same fonts, grid, axes and tooltip style.
+- In development, Vite forwards `/api` (and the original app's paths) to `server.js`.
+
+## Design system
+
+The look is a dark broadcast style drawn from the rink at night. All values live as CSS variables at the top of `src/styles/global.css`.
+
+- **Surfaces:** arena navy `#0a1424` for the page, `#101d33` for panels, `#162741` / `#1e3353` for raised and selected states.
+- **Ink:** `#eaf1fa` primary text, `#a8b8cf` secondary, `#7d91ae` muted.
+- **Signals:** blue-line blue `#4da3ff` for focus and the active section; goal-light red `#e5484d` only for alerts.
+- **Type:** Barlow Condensed for headings, numbers and team abbreviations (scoreboard feel); Barlow for body text. Numbers use tabular figures so columns line up. Fonts are bundled through npm, so they work offline.
+- **Team colors:** `src/lib/teams.ts` holds primary and secondary colors for every franchise since 2005-06 (including Arizona, Phoenix, Atlanta and Utah). `teamAccent()` picks whichever team color is readable on the dark panels (navy-primary teams such as Toronto get a lightened version), so team stripes and bars never disappear into the background.
+- **Charts:** generic series use the first three colors of a palette validated for color-blind separation on the dark surface (`#3987e5`, `#d95926`, `#199e70`); diverging values (goal differential) use blue for positive and red for negative around a gray zero line. Values in tooltips and labels are always text, never color alone, and every chart has its numbers in a table or tooltip.
+- **Accessibility:** visible focus rings, keyboard-operable search, reduced motion respected, layout works down to phone width.
 
 ## API reference
 
@@ -135,58 +164,25 @@ All routes are GET. `season` looks like `20252026` (default: current season). `g
 
 **Data notes:** shooting percentage comes back as a fraction (0.16) and is shown as a percentage; time on ice comes back in seconds and is shown as mm:ss; multi-team players come back as a comma-separated team string and are split into a list.
 
-## Charts module
-
-`public/js/charts.js` exports a small set of reusable charts, all drawn as SVG, redrawn on resize, and sharing one tooltip.
-
-| Function | Use | Main options |
-|---|---|---|
-| `renderBars(el, opts)` | Horizontal bars, stacked or diverging | `mode: 'stacked' \| 'diverging'`, `series`, `rows[{label, values \| value, valueLabel, tip}]`, `labelWidth` |
-| `renderScatter(el, opts)` | Scatter with hover and selective labels | `points[{x, y, label, tip}]`, `xLabel`, `yLabel`, `labelTop` |
-| `renderLines(el, opts)` | Multi-series lines with a crosshair | `series[{name, color, dash, points[{x, y, tip}]}]`, `xLabel`, `yLabel` |
-| `tip` | Shared tooltip | `tip.show(html, event)`, `tip.hide()` |
-
-To add a chart to a page, give it a container `<div>` and call one of these with your data. `tip` strings are HTML, so escape any text that comes from the API (`esc()` in `common.js`).
-
-## Design and accessibility
-
-- **Colors** come from one validated palette: blue, orange and aqua as the first three categorical colors, and blue to red for positive/negative. The palette was checked with a validator for lightness, color-blind separation (adjacent colors stay distinguishable under simulated color-vision deficiency) and contrast, in both light and dark mode. Aqua is below 3:1 contrast on the light background, so any chart that uses it also shows values as text, and every chart has a table or tooltip carrying the same numbers.
-- **Not by color alone.** Series are named in a legend, bars have a 2px gap between segments, the comparison line on the trend chart is dashed, and values are shown as text next to bars.
-- **Dark mode** uses its own selected color steps (not an inverted copy), and follows your OS unless you choose a theme with the button.
-- **Charts have one axis only** (no dual-axis charts), thin marks, and quiet gridlines.
-- Keyboard: all controls and sortable column headers are focusable with visible focus rings. Chart hover details are mouse and touch only; the same numbers are in the tables.
-
 ## Testing without the NHL API
 
-The server reads its upstream addresses from two environment variables, so it can be pointed at a local stand-in server that returns the same JSON shapes:
+The server reads its upstream addresses from two environment variables, so it can be pointed at a local stand-in that returns the same JSON shapes:
 
 ```
 NHL_WEB_BASE=http://127.0.0.1:4010 NHL_STATS_BASE=http://127.0.0.1:4010 npm start
 ```
 
-The pages in steps 2 to 4 were developed and checked this way against a mock of 32 teams and about 700 players, in light, dark and phone-width layouts. The mock server itself is not part of the repo.
+Step 1 of v2 was built and checked this way against a mock of 32 teams and about 700 invented players: desktop and phone widths, the Ctrl+K search, season switching, the disk cache, legacy routes and the SPA fallback. The mock server is not part of the repo.
 
 ## Known limitations
 
 - **Unofficial API.** The NHL can change or remove these endpoints without notice, and its [terms of service](https://www.nhl.com/info/terms-of-service) limit reuse to personal, non-commercial use. If a page shows a "Couldn't load" banner, check the terminal where the server is running.
-- **Real-data check still pending for steps 3 and 4.** Field names for the skater report were confirmed against live data, but the Players and Player detail pages have so far only been tested on mock data. Things worth eyeballing on first real run: shooting %, time on ice, traded players, and the player detail trend.
-- **Early-season data is sparse.** In the first weeks, many players and teams are tied on every stat, so charts look flat and the leader tiles show one name plus "+N tied" (Teams tiles show only one of the tied teams).
-- **Skaters only.** Goalies are not included yet.
+- **Real-data check pending for v2 step 1.** The League overview uses the same endpoints as the original Teams and Players pages (already confirmed live), but its layout was checked on mock data. Worth eyeballing on first run: team logos in the strength chart, and early-season leaders where many players are tied.
+- **Early-season data is sparse.** In the first weeks many players are tied (tied players share a rank in the leaders list) and the strength chart's teams sit close together. Points per game only counts players with at least 40% of the league-high games played.
+- **Skaters only.** Goalies arrive in step 8.
 - **Past seasons** are limited to 2005-06 onward (the shootout era), because older seasons include ties and a different points system.
 - **Logos and headshots** load from NHL servers, so they only appear while online; they are hidden if they fail to load.
-- **In-memory cache.** It is cleared whenever the server restarts.
 - **Playoffs** data only exists once the playoffs begin, so that option shows an empty state before then.
-
-## Roadmap
-
-Ideas for the next steps, roughly in order of value:
-
-- **Comparisons.** Put two or more players, or two teams, on the same trend chart (the line chart already supports multiple series).
-- **Live scores** strip using the NHL's scoreboard endpoint.
-- **Goalie stats** (wins, save %, GAA) with their own leaderboard.
-- **Season snapshots** saved to a small local database (such as SQLite) so you can chart how standings changed over a season, since the API mostly provides "now".
-- **Chart.js for complex charts** (radar charts, zooming, brushing). To add it without npm, save `https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.js` as `public/vendor/chart.umd.js`, load it with a `<script>` tag on the page that needs it, and build on top of it.
-- Polish: favicon, loading skeletons, remembering filters between visits.
 
 ## Updating GitHub
 

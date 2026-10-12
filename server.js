@@ -10,10 +10,40 @@ const PORT = Number(process.env.PORT) || 3000;
 const HOST = '127.0.0.1'; // local only
 const WEB = process.env.NHL_WEB_BASE || 'https://api-web.nhle.com/v1';
 const STATS = process.env.NHL_STATS_BASE || 'https://api.nhle.com/stats/rest/en';
-const PUBLIC_DIR = path.join(__dirname, 'public');
+const DIST_DIR = path.join(__dirname, 'dist');     // new React app (npm run build)
+const LEGACY_DIR = path.join(__dirname, 'public'); // original app, kept until fully replaced
+const DATA_DIR = path.join(__dirname, 'data');
 
 const MIN = 60 * 1000;
 const TTL = { current: 5 * MIN, player: 10 * MIN, seasons: 6 * 60 * MIN, past: 24 * 60 * MIN };
+
+// ---------- persistent cache (SQLite, built into Node 22.13+) ----------
+// Responses survive restarts, so past seasons are fetched once and then come from disk.
+// If SQLite is unavailable for any reason the app falls back to the in-memory cache only.
+let db = null;
+try {
+  const { DatabaseSync } = require('node:sqlite');
+  fs.mkdirSync(DATA_DIR, { recursive: true });
+  db = new DatabaseSync(path.join(DATA_DIR, 'cache.db'));
+  db.exec('PRAGMA journal_mode = WAL; CREATE TABLE IF NOT EXISTS http_cache (url TEXT PRIMARY KEY, t INTEGER NOT NULL, data TEXT NOT NULL)');
+} catch (err) {
+  console.warn(`Disk cache disabled (${err.message}); using memory only.`);
+  db = null;
+}
+const dbGet = db && db.prepare('SELECT t, data FROM http_cache WHERE url = ?');
+const dbPut = db && db.prepare('INSERT OR REPLACE INTO http_cache (url, t, data) VALUES (?, ?, ?)');
+
+function diskRead(url) {
+  if (!dbGet) return null;
+  try {
+    const row = dbGet.get(url);
+    return row ? { t: Number(row.t), data: JSON.parse(row.data) } : null;
+  } catch { return null; }
+}
+function diskWrite(url, t, data) {
+  if (!dbPut) return;
+  try { dbPut.run(url, t, JSON.stringify(data)); } catch { /* cache is best-effort */ }
+}
 
 class HttpError extends Error {
   constructor(status, message) { super(message); this.status = status; }
@@ -43,7 +73,11 @@ const cache = new Map();    // url -> { t, data }
 const inflight = new Map(); // url -> Promise
 
 async function getJson(url, ttl) {
-  const hit = cache.get(url);
+  let hit = cache.get(url);
+  if (!hit) {
+    hit = diskRead(url);
+    if (hit) cache.set(url, hit);
+  }
   if (hit && Date.now() - hit.t < ttl) return hit.data;
   if (inflight.has(url)) return inflight.get(url);
   const p = (async () => {
@@ -55,7 +89,9 @@ async function getJson(url, ttl) {
       if (res.status === 404) throw new HttpError(404, 'Not found upstream');
       if (!res.ok) throw new HttpError(502, `NHL API returned ${res.status}`);
       const data = await res.json();
-      cache.set(url, { t: Date.now(), data });
+      const t = Date.now();
+      cache.set(url, { t, data });
+      diskWrite(url, t, data);
       return data;
     } catch (err) {
       if (hit) return hit.data; // serve stale rather than fail
@@ -178,7 +214,9 @@ async function handleApi(url) {
   const q = url.searchParams;
   let m;
 
-  if (p === '/api/health') return { ok: true, currentSeason: currentSeasonId(), cached: cache.size };
+  if (p === '/api/health') {
+    return { ok: true, currentSeason: currentSeasonId(), cached: cache.size, diskCache: Boolean(db), built: fs.existsSync(path.join(DIST_DIR, 'index.html')) };
+  }
 
   if (p === '/api/seasons') return { current: currentSeasonId(), seasons: await getSeasons() };
 
@@ -223,18 +261,51 @@ async function handleApi(url) {
 const MIME = {
   '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8',
   '.css': 'text/css; charset=utf-8', '.json': 'application/json', '.svg': 'image/svg+xml',
-  '.png': 'image/png', '.ico': 'image/x-icon',
+  '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp', '.ico': 'image/x-icon',
+  '.woff2': 'font/woff2', '.woff': 'font/woff', '.map': 'application/json',
 };
 
-function serveStatic(pathname, res) {
-  const rel = pathname === '/' ? 'index.html' : decodeURIComponent(pathname).replace(/^\/+/, '');
-  const file = path.resolve(PUBLIC_DIR, rel);
-  if (file !== PUBLIC_DIR && !file.startsWith(PUBLIC_DIR + path.sep)) throw new HttpError(403, 'Forbidden');
-  let stat;
-  try { stat = fs.statSync(file); } catch { throw new HttpError(404, 'Not found'); }
-  if (!stat.isFile()) throw new HttpError(404, 'Not found');
-  res.writeHead(200, { 'Content-Type': MIME[path.extname(file)] || 'application/octet-stream' });
+// Resolve a URL path inside a folder, refusing anything that escapes it.
+function fileIn(dir, rel) {
+  const file = path.resolve(dir, rel);
+  if (file !== dir && !file.startsWith(dir + path.sep)) throw new HttpError(403, 'Forbidden');
+  try { return fs.statSync(file).isFile() ? file : null; } catch { return null; }
+}
+
+function sendFile(res, file, immutable) {
+  res.writeHead(200, {
+    'Content-Type': MIME[path.extname(file)] || 'application/octet-stream',
+    'Cache-Control': immutable ? 'public, max-age=31536000, immutable' : 'no-cache',
+  });
   fs.createReadStream(file).pipe(res);
+}
+
+const NOT_BUILT = `<!doctype html><meta charset="utf-8"><title>NHL Analytics</title>
+<body style="font:16px system-ui;background:#0a1424;color:#eaf1fa;padding:40px;max-width:640px">
+<h1>The new app hasn't been built yet</h1>
+<p>While developing, run <code>npm run dev</code> and open <a style="color:#7cb8ff" href="http://localhost:5173">localhost:5173</a>.</p>
+<p>To serve it from here, run <code>npm run build</code> once, then <code>npm start</code>.</p>
+<p>The original app is still at <a style="color:#7cb8ff" href="/legacy">/legacy</a>.</p></body>`;
+
+// Order: built React app (dist/) -> original pages (public/, reachable at /legacy and
+// their old paths such as /players.html) -> React app's index.html for its client-side routes.
+function serveStatic(pathname, res) {
+  const rel = decodeURIComponent(pathname).replace(/^\/+/, '');
+
+  if (rel === 'legacy' || rel === 'legacy/') return sendFile(res, fileIn(LEGACY_DIR, 'index.html'));
+
+  if (rel) {
+    const built = fileIn(DIST_DIR, rel);
+    if (built) return sendFile(res, built, rel.startsWith('assets/'));
+    const legacy = fileIn(LEGACY_DIR, rel);
+    if (legacy && rel !== 'index.html') return sendFile(res, legacy);
+    if (path.extname(rel)) throw new HttpError(404, 'Not found');
+  }
+
+  const app = fileIn(DIST_DIR, 'index.html');
+  if (app) return sendFile(res, app);
+  res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+  res.end(NOT_BUILT);
 }
 
 function sendJson(res, status, body) {
