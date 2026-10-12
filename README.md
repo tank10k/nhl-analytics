@@ -10,6 +10,16 @@ npm start
 
 Then open http://localhost:3000 (needs Node 18+; no `npm install` required yet).
 
+## Pages
+
+| URL | What it shows |
+|---|---|
+| `/` | Teams: standings table, record and goal-differential charts |
+| `/players.html` | Players: leaders, shots-vs-goals scatter, sortable table |
+| `/player.html?id=ID` | One player: season trend with season comparison, career by season, game log |
+
+All pages share the season picker (kept in the URL as `?season=20252026`).
+
 ## API (served by `server.js`)
 
 All endpoints take `season` (e.g. `20252026`, default = current) and `gameType` (`2` regular, `3` playoffs) where relevant.

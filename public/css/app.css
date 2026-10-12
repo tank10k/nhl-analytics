@@ -118,3 +118,22 @@ svg .ring { fill: none; stroke: var(--ink); stroke-width: 2; pointer-events: non
 .tooltip hr { border: 0; border-top: 1px solid var(--grid); margin: 8px 0; }
 .more { display: flex; justify-content: center; align-items: center; gap: 12px; padding-top: 12px; color: var(--ink2); }
 .tile .v span { font-weight: 700; }
+
+/* player detail + lines */
+.swatch { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 6px; }
+svg .hovermark, svg .endmark { stroke: var(--surface); stroke-width: 2; pointer-events: none; }
+svg .endlabel { fill: var(--ink2); font-size: 11px; }
+a.plink { color: var(--ink); text-decoration: none; font-weight: 600; }
+a.plink:hover { text-decoration: underline; }
+.back { color: var(--ink2); text-decoration: none; }
+.back:hover { color: var(--ink); }
+.profile { display: flex; gap: 16px; align-items: center; }
+.profile img { width: 88px; height: 88px; border-radius: 50%; background: var(--hover); object-fit: cover; }
+.profile h1 { font-size: 26px; letter-spacing: -.02em; }
+.profile p { color: var(--ink2); }
+.panelhead { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap; }
+.panelhead .filters { gap: 12px; }
+.tiles.six { grid-template-columns: repeat(6, 1fr); }
+@media (max-width: 900px) { .tiles.six { grid-template-columns: repeat(2, 1fr); } }
+.tooltip { max-width: 340px; }
+.tooltip .r span:last-child { white-space: nowrap; }

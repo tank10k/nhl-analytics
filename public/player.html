@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NHL Analytics – Player</title>
+<script>try{var t=localStorage.getItem('theme');if(t)document.documentElement.dataset.theme=t}catch(e){}</script>
+<link rel="stylesheet" href="/css/app.css">
+</head>
+<body>
+<header class="top">
+  <div class="wrap bar">
+    <div class="brand">NHL Analytics</div>
+    <nav class="tabs" aria-label="Pages">
+      <a class="tab" href="/">Teams</a>
+      <a class="tab active" href="/players.html" aria-current="page">Players</a>
+    </nav>
+    <div class="spacer"></div>
+    <label class="field">Season <select id="season" aria-label="Season"></select></label>
+    <button class="btn" id="theme" type="button"></button>
+  </div>
+</header>
+
+<main class="wrap">
+  <a class="back" id="back" href="/players.html">← All players</a>
+
+  <div id="error" class="banner" hidden>
+    <span id="errorText"></span>
+    <button class="btn" id="retry" type="button">Retry</button>
+  </div>
+  <p id="loading" class="loading">Loading player…</p>
+
+  <section id="profile" class="profile"></section>
+  <section id="tiles" class="tiles six" aria-label="Season totals"></section>
+
+  <section class="panel">
+    <div class="panelhead">
+      <div>
+        <h2>Season trend</h2>
+        <p class="sub">Running total after each game. Hover to compare games.</p>
+      </div>
+      <div class="filters">
+        <label class="field">Stat
+          <select id="metric">
+            <option value="points">Points</option>
+            <option value="goals">Goals</option>
+            <option value="assists">Assists</option>
+            <option value="shots">Shots on goal</option>
+          </select>
+        </label>
+        <label class="field">Compare with <select id="compare"></select></label>
+        <label class="field"><input type="checkbox" id="match" checked> Match games played</label>
+      </div>
+    </div>
+    <div id="chartTrend"></div>
+  </section>
+
+  <section class="panel">
+    <h2>Career by season</h2>
+    <p class="sub">Regular-season goals and assists for each NHL season.</p>
+    <div id="chartCareer"></div>
+  </section>
+
+  <section class="panel">
+    <h2>Game log</h2>
+    <p class="sub" id="logCount"></p>
+    <div class="tablewrap"><table id="table"></table></div>
+  </section>
+</main>
+
+<script type="module" src="/js/player.js"></script>
+</body>
+</html>

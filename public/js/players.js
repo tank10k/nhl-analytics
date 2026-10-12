@@ -117,6 +117,7 @@ function renderTable(list) {
     `<button type="button" data-key="${c.key}">${c.label}</button></th>`).join('');
   const body = rows.slice(0, shown).map((p, i) => `<tr><td>${i + 1}</td>` + COLS.map((c) => {
     const v = c.show ? c.show(p) : c.get(p);
+    if (c.key === 'name') return `<td class="l"><a class="plink" href="/player.html?id=${p.id}&season=${encodeURIComponent(season)}">${esc(v)}</a></td>`;
     return `<td class="${c.left ? 'l' : ''}${c.bold ? ' hi' : ''}">${esc(v)}</td>`;
   }).join('') + '</tr>').join('');
   $('table').innerHTML = `<thead><tr>${head}</tr></thead><tbody>${body || `<tr><td colspan="${COLS.length + 1}">No players match.</td></tr>`}</tbody>`;

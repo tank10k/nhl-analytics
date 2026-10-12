@@ -38,10 +38,11 @@ export const tip = {
 };
 
 // ---- helpers ----
-function niceTicks(max, target) {
+function niceTicks(max, target, integer = false) {
   if (!(max > 0)) return { ticks: [0, 1], max: 1 };
   const raw = max / target, p = 10 ** Math.floor(Math.log10(raw)), f = raw / p;
-  const step = (f <= 1 ? 1 : f <= 2 ? 2 : f <= 5 ? 5 : 10) * p;
+  let step = (f <= 1 ? 1 : f <= 2 ? 2 : f <= 5 ? 5 : 10) * p;
+  if (integer) step = Math.max(1, Math.round(step));
   const top = Math.ceil(max / step - 1e-9) * step;
   const ticks = [];
   for (let v = 0; v <= top + step / 1e6; v += step) ticks.push(Math.round(v * 1e6) / 1e6);
@@ -227,5 +228,90 @@ function drawScatter(container) {
   });
   hit.addEventListener('pointerleave', () => { ring.setAttribute('display', 'none'); tip.hide(); });
   root.append(ring, hit);
+  plot.append(root);
+}
+
+// ---- lines ----
+// opts: { series:[{name,color,dash?,points:[{x,y,tip}]}], xLabel, yLabel, xName:'Game', label }
+// x values are integers (game numbers). Hover snaps to the nearest x and lists every series.
+export function renderLines(container, opts) {
+  container._lopts = opts;
+  if (!container._lbuilt) {
+    container.innerHTML = '<div class="legend"></div><div class="plot"></div>';
+    container._plot = container.querySelector('.plot');
+    let lastW = 0;
+    new ResizeObserver(() => {
+      const w = container._plot.clientWidth;
+      if (w !== lastW) { lastW = w; drawLines(container); }
+    }).observe(container._plot);
+    container._lbuilt = true;
+  }
+  container.querySelector('.legend').innerHTML = opts.series.length < 2 ? '' : opts.series.map((s) =>
+    `<span class="key"><i style="background:${s.color}"></i>${s.name}</span>`).join('');
+  drawLines(container);
+}
+
+function drawLines(container) {
+  const { series, xLabel, yLabel, label, xName = 'Game' } = container._lopts;
+  const plot = container._plot;
+  plot.textContent = '';
+  const all = series.flatMap((s) => s.points);
+  if (!all.length) { plot.innerHTML = '<p class="empty">No games to chart for this selection.</p>'; return; }
+
+  const W = Math.max(plot.clientWidth, 300), H = W < 520 ? 270 : 330;
+  const m = { top: 14, right: 40, bottom: 44, left: 48 };
+  const iw = W - m.left - m.right, ih = H - m.top - m.bottom;
+  const maxX = Math.max(...all.map((p) => p.x));
+  const xt = niceTicks(maxX, 8, true), yt = niceTicks(Math.max(1, ...all.map((p) => p.y)), 5, true);
+  const X = (v) => m.left + (v / xt.max) * iw;
+  const Y = (v) => m.top + ih - (v / yt.max) * ih;
+
+  const root = svg('svg', { width: W, height: H, viewBox: `0 0 ${W} ${H}`, role: 'img', 'aria-label': label || 'Line chart' });
+  for (const t of yt.ticks) {
+    root.append(
+      svg('line', { x1: m.left, x2: W - m.right, y1: Y(t), y2: Y(t), class: t === 0 ? 'axis' : 'grid' }),
+      svg('text', { x: m.left - 8, y: Y(t) + 4, 'text-anchor': 'end', class: 'tick' }, String(t)),
+    );
+  }
+  for (const t of xt.ticks) {
+    root.append(svg('text', { x: X(t), y: m.top + ih + 16, 'text-anchor': 'middle', class: 'tick' }, String(t)));
+  }
+  root.append(
+    svg('text', { x: m.left + iw / 2, y: H - 6, 'text-anchor': 'middle', class: 'axtitle' }, xLabel),
+    svg('text', { transform: `translate(12 ${m.top + ih / 2}) rotate(-90)`, 'text-anchor': 'middle', class: 'axtitle' }, yLabel),
+  );
+
+  const labelYs = [];
+  for (const s of series) {
+    if (!s.points.length) continue;
+    const attrs = { d: s.points.map((p, i) => `${i ? 'L' : 'M'}${X(p.x)} ${Y(p.y)}`).join(''), fill: 'none', stroke: s.color,
+      'stroke-width': 2, 'stroke-linejoin': 'round', 'stroke-linecap': 'round' };
+    if (s.dash) attrs['stroke-dasharray'] = s.dash; // secondary encoding beyond color
+    root.append(svg('path', attrs));
+    const last = s.points[s.points.length - 1];
+    root.append(svg('circle', { cx: X(last.x), cy: Y(last.y), r: 4, fill: s.color, class: 'endmark' }));
+    if (!labelYs.some((y) => Math.abs(y - Y(last.y)) < 13)) {
+      root.append(svg('text', { x: X(last.x) + 9, y: Y(last.y) + 4, class: 'endlabel' }, String(last.y)));
+      labelYs.push(Y(last.y));
+    }
+  }
+
+  const cross = svg('line', { y1: m.top, y2: m.top + ih, class: 'axis', display: 'none' });
+  const marks = series.map((s) => svg('circle', { r: 5, fill: s.color, class: 'hovermark', display: 'none' }));
+  const off = () => { cross.setAttribute('display', 'none'); marks.forEach((c) => c.setAttribute('display', 'none')); tip.hide(); };
+  const hit = svg('rect', { x: m.left, y: m.top, width: iw, height: ih, fill: 'transparent' });
+  hit.addEventListener('pointermove', (e) => {
+    const r = root.getBoundingClientRect();
+    const xi = Math.min(maxX, Math.max(1, Math.round(((e.clientX - r.left - m.left) / iw) * xt.max)));
+    const rows = series.map((s, i) => ({ s, i, p: s.points.find((q) => q.x === xi) })).filter((o) => o.p);
+    if (!rows.length) return off();
+    cross.setAttribute('x1', X(xi)); cross.setAttribute('x2', X(xi)); cross.removeAttribute('display');
+    marks.forEach((c) => c.setAttribute('display', 'none'));
+    for (const o of rows) { marks[o.i].setAttribute('cx', X(xi)); marks[o.i].setAttribute('cy', Y(o.p.y)); marks[o.i].removeAttribute('display'); }
+    tip.show(`<b>${xName} ${xi}</b>` + rows.map((o) =>
+      `<div class="r"><span><i class="swatch" style="background:${o.s.color}"></i>${o.s.name}</span><span>${o.p.tip}</span></div>`).join(''), e);
+  });
+  hit.addEventListener('pointerleave', off);
+  root.append(cross, ...marks, hit);
   plot.append(root);
 }
