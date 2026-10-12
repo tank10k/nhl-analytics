@@ -1,261 +1,168 @@
 'use strict';
-// NHL Analytics - local server (zero dependencies, needs Node 18+).
-// Proxies + caches the NHL's public JSON APIs and serves the static frontend in /public.
+// NHL Analytics - local server (no npm dependencies, needs Node 22.13+).
+// Proxies + caches the NHL's public JSON APIs, computes derived stats (percentiles,
+// shot data, expected goals), and serves the React app (dist/) and the original app (public/).
+//
+//   lib/util.js     errors, season ids, input parsing
+//   lib/cache.js    memory + SQLite disk cache
+//   lib/loaders.js  standings, skaters, goalies, team stats, players, schedules, percentiles
+//   lib/shots.js    play-by-play shots and the expected-goals model
 
 const http = require('node:http');
 const fs = require('node:fs');
 const path = require('node:path');
 
+const { HttpError, currentSeasonId, parseSeason, parseGameType, parseTeam } = require('./lib/util');
+const cache = require('./lib/cache');
+const L = require('./lib/loaders');
+const shots = require('./lib/shots');
+
 const PORT = Number(process.env.PORT) || 3000;
 const HOST = '127.0.0.1'; // local only
-const WEB = process.env.NHL_WEB_BASE || 'https://api-web.nhle.com/v1';
-const STATS = process.env.NHL_STATS_BASE || 'https://api.nhle.com/stats/rest/en';
 const DIST_DIR = path.join(__dirname, 'dist');     // new React app (npm run build)
 const LEGACY_DIR = path.join(__dirname, 'public'); // original app, kept until fully replaced
-const DATA_DIR = path.join(__dirname, 'data');
-
-const MIN = 60 * 1000;
-const TTL = { current: 5 * MIN, player: 10 * MIN, seasons: 6 * 60 * MIN, past: 24 * 60 * MIN };
-
-// ---------- persistent cache (SQLite, built into Node 22.13+) ----------
-// Responses survive restarts, so past seasons are fetched once and then come from disk.
-// If SQLite is unavailable for any reason the app falls back to the in-memory cache only.
-let db = null;
-try {
-  const { DatabaseSync } = require('node:sqlite');
-  fs.mkdirSync(DATA_DIR, { recursive: true });
-  db = new DatabaseSync(path.join(DATA_DIR, 'cache.db'));
-  db.exec('PRAGMA journal_mode = WAL; CREATE TABLE IF NOT EXISTS http_cache (url TEXT PRIMARY KEY, t INTEGER NOT NULL, data TEXT NOT NULL)');
-} catch (err) {
-  console.warn(`Disk cache disabled (${err.message}); using memory only.`);
-  db = null;
-}
-const dbGet = db && db.prepare('SELECT t, data FROM http_cache WHERE url = ?');
-const dbPut = db && db.prepare('INSERT OR REPLACE INTO http_cache (url, t, data) VALUES (?, ?, ?)');
-
-function diskRead(url) {
-  if (!dbGet) return null;
-  try {
-    const row = dbGet.get(url);
-    return row ? { t: Number(row.t), data: JSON.parse(row.data) } : null;
-  } catch { return null; }
-}
-function diskWrite(url, t, data) {
-  if (!dbPut) return;
-  try { dbPut.run(url, t, JSON.stringify(data)); } catch { /* cache is best-effort */ }
-}
-
-class HttpError extends Error {
-  constructor(status, message) { super(message); this.status = status; }
-}
-
-// ---------- season helpers ----------
-function currentSeasonId(d = new Date()) {
-  const y = d.getFullYear();
-  const start = d.getMonth() + 1 >= 9 ? y : y - 1; // NHL season rolls over ~Sept
-  return `${start}${start + 1}`;
-}
-function parseSeason(v) {
-  const s = v || currentSeasonId();
-  if (!/^\d{8}$/.test(s) || Number(s.slice(4)) !== Number(s.slice(0, 4)) + 1)
-    throw new HttpError(400, 'season must look like 20252026');
-  return s;
-}
-function parseGameType(v) {
-  const g = v || '2';
-  if (g !== '2' && g !== '3') throw new HttpError(400, 'gameType must be 2 (regular) or 3 (playoffs)');
-  return g;
-}
-const ttlFor = (season) => (season === currentSeasonId() ? TTL.current : TTL.past);
-
-// ---------- cached fetch (with in-flight dedupe and stale-on-error) ----------
-const cache = new Map();    // url -> { t, data }
-const inflight = new Map(); // url -> Promise
-
-async function getJson(url, ttl) {
-  let hit = cache.get(url);
-  if (!hit) {
-    hit = diskRead(url);
-    if (hit) cache.set(url, hit);
-  }
-  if (hit && Date.now() - hit.t < ttl) return hit.data;
-  if (inflight.has(url)) return inflight.get(url);
-  const p = (async () => {
-    try {
-      const res = await fetch(url, {
-        headers: { 'User-Agent': 'nhl-analytics-local/0.1', Accept: 'application/json' },
-        signal: AbortSignal.timeout(15000),
-      });
-      if (res.status === 404) throw new HttpError(404, 'Not found upstream');
-      if (!res.ok) throw new HttpError(502, `NHL API returned ${res.status}`);
-      const data = await res.json();
-      const t = Date.now();
-      cache.set(url, { t, data });
-      diskWrite(url, t, data);
-      return data;
-    } catch (err) {
-      if (hit) return hit.data; // serve stale rather than fail
-      if (err instanceof HttpError) throw err;
-      throw new HttpError(502, `Could not reach NHL API: ${err.message}`);
-    } finally {
-      inflight.delete(url);
-    }
-  })();
-  inflight.set(url, p);
-  return p;
-}
-
-const dflt = (o) => (o && typeof o === 'object' ? o.default : o);
-
-// ---------- data loaders ----------
-async function getSeasons() {
-  const d = await getJson(`${WEB}/standings-season`, TTL.seasons);
-  return (d.seasons || []).map((s) => ({
-    id: String(s.id), standingsStart: s.standingsStart, standingsEnd: s.standingsEnd,
-  }));
-}
-
-async function getStandings(season) {
-  let segment = 'now';
-  if (season !== currentSeasonId()) {
-    const s = (await getSeasons()).find((x) => x.id === season);
-    if (!s) throw new HttpError(404, `Unknown season ${season}`);
-    const end = String(s.standingsEnd || '').slice(0, 10);
-    const today = new Date().toISOString().slice(0, 10);
-    segment = end && end < today ? end : 'now';
-  }
-  const d = await getJson(`${WEB}/standings/${segment}`, ttlFor(season));
-  return (d.standings || []).map((t) => ({
-    abbrev: dflt(t.teamAbbrev),
-    name: `${dflt(t.placeName) || ''} ${dflt(t.teamCommonName) || ''}`.trim() || dflt(t.teamName),
-    logo: t.teamLogo,
-    conference: t.conferenceName,
-    division: t.divisionName,
-    gp: t.gamesPlayed,
-    wins: t.wins,
-    losses: t.losses,
-    otLosses: t.otLosses,
-    points: t.points,
-    pointPct: t.pointPctg,
-    regWins: t.regulationWins,
-    regOtWins: t.regulationPlusOtWins,
-    gf: t.goalFor,
-    ga: t.goalAgainst,
-    goalDiff: t.goalDifferential,
-    home: { w: t.homeWins, l: t.homeLosses, otl: t.homeOtLosses },
-    road: { w: t.roadWins, l: t.roadLosses, otl: t.roadOtLosses },
-    l10: { w: t.l10Wins, l: t.l10Losses, otl: t.l10OtLosses },
-    streak: t.streakCode ? `${t.streakCode}${t.streakCount}` : null,
-    rank: { league: t.leagueSequence, conference: t.conferenceSequence, division: t.divisionSequence },
-  }));
-}
-
-// Full skater list for a season, cached; filtering/sorting happens per request.
-async function getSkaters(season, gameType) {
-  const exp = encodeURIComponent(`seasonId=${season} and gameTypeId=${gameType}`);
-  const url = `${STATS}/skater/summary?isAggregate=false&isGame=false&start=0&limit=-1&cayenneExp=${exp}`;
-  const d = await getJson(url, ttlFor(season));
-  return (d.data || []).map((p) => ({
-    id: p.playerId,
-    name: p.skaterFullName,
-    teams: p.teamAbbrevs ? String(p.teamAbbrevs).split(',') : [],
-    pos: p.positionCode,
-    gp: p.gamesPlayed,
-    goals: p.goals,
-    assists: p.assists,
-    points: p.points,
-    shots: p.shots,
-    shootingPct: p.shootingPct,
-    plusMinus: p.plusMinus,
-    pim: p.penaltyMinutes,
-    toiPerGame: p.timeOnIcePerGame,
-    pointsPerGame: p.pointsPerGame,
-    ppPoints: p.ppPoints,
-    gwg: p.gameWinningGoals,
-  }));
-}
-
-const SORTABLE = new Set(['goals', 'assists', 'points', 'shots', 'gp', 'shootingPct',
-  'plusMinus', 'pim', 'toiPerGame', 'pointsPerGame', 'ppPoints', 'gwg']);
-
-async function getPlayer(id) {
-  const d = await getJson(`${WEB}/player/${id}/landing`, TTL.player);
-  const nhlSeasons = (d.seasonTotals || []).filter((s) => s.leagueAbbrev === 'NHL' && s.gameTypeId === 2);
-  return {
-    id: d.playerId,
-    name: `${dflt(d.firstName) || ''} ${dflt(d.lastName) || ''}`.trim(),
-    team: d.currentTeamAbbrev,
-    pos: d.position,
-    number: d.sweaterNumber,
-    headshot: d.headshot,
-    featured: d.featuredStats || null,
-    career: d.careerTotals || null,
-    seasons: nhlSeasons.map((s) => ({
-      season: String(s.season), team: dflt(s.teamName), gp: s.gamesPlayed,
-      goals: s.goals, assists: s.assists, points: s.points, shots: s.shots,
-      plusMinus: s.plusMinus, pim: s.pim,
-    })),
-    last5: d.last5Games || [],
-  };
-}
-
-async function getGameLog(id, season, gameType) {
-  const d = await getJson(`${WEB}/player/${id}/game-log/${season}/${gameType}`, ttlFor(season));
-  return (d.gameLog || []).map((g) => ({
-    date: g.gameDate, opp: g.opponentAbbrev, homeRoad: g.homeRoadFlag,
-    goals: g.goals, assists: g.assists, points: g.points, shots: g.shots,
-    plusMinus: g.plusMinus, pim: g.pim, toi: g.toi,
-  }));
-}
 
 // ---------- routing ----------
+
+const SKATER_SORT = new Set(['goals', 'assists', 'points', 'shots', 'gp', 'shootingPct',
+  'plusMinus', 'pim', 'toiPerGame', 'pointsPerGame', 'ppPoints', 'gwg', 'hits', 'blocks']);
+const GOALIE_SORT = new Set(['gp', 'wins', 'savePct', 'gaa', 'shutouts', 'saves']);
+
+function sortRows(rows, q, allowed, dflt, ascByDefault = []) {
+  const sort = q.get('sort') || dflt;
+  if (!allowed.has(sort)) throw new HttpError(400, `sort must be one of: ${[...allowed].join(', ')}`);
+  const dirParam = q.get('dir');
+  const dir = dirParam ? (dirParam === 'asc' ? 1 : -1) : ascByDefault.includes(sort) ? 1 : -1;
+  return [...rows].sort((a, b) => {
+    const av = a[sort], bv = b[sort];
+    if (av == null && bv == null) return 0;
+    if (av == null) return 1; // nulls last either way
+    if (bv == null) return -1;
+    return dir * (av - bv);
+  });
+}
+
+const limitOf = (q, dflt = 50) => Math.min(Math.max(parseInt(q.get('limit'), 10) || dflt, 1), 2000);
+
+// One line per route; also served at /api so you can click through them in a browser.
+const ROUTES = [
+  ['/api/health', 'Server status and cache info'],
+  ['/api/seasons', 'Seasons with start/end dates'],
+  ['/api/standings?season=', 'Standings for a season'],
+  ['/api/teams/stats?season=&gameType=', 'Team shots, shot share, PDO, PP%, PK%, faceoff%'],
+  ['/api/team/:abbrev/schedule?season=', 'A team\'s games with results and running points'],
+  ['/api/team/:abbrev/shots?season=&gameType=', 'Every shot for/against a team, with xG (slow on first load)'],
+  ['/api/league/race?season=', 'Cumulative points by game number for every team'],
+  ['/api/skaters?season=&gameType=&team=&pos=&q=&sort=&dir=&limit=', 'Skater stats (incl. hits, blocks)'],
+  ['/api/goalies?season=&gameType=&team=&minGp=&sort=&dir=&limit=', 'Goalie stats'],
+  ['/api/percentiles?season=&gameType=&pos=F|D', 'Percentile ranks for every skater by position group'],
+  ['/api/player/:id', 'Player profile, bio, draft, awards, season-by-season'],
+  ['/api/player/:id/gamelog?season=&gameType=', 'Game-by-game log'],
+  ['/api/player/:id/percentiles?season=&gameType=', 'One skater\'s percentile ranks'],
+  ['/api/player/:id/shots?season=&gameType=', 'Every shot attempt by a skater, with xG'],
+  ['/api/game/:id/shots', 'Every shot in one game, with xG'],
+];
+
 async function handleApi(url) {
-  const p = url.pathname;
+  const p = url.pathname.replace(/\/+$/, '') || '/api';
   const q = url.searchParams;
   let m;
 
+  if (p === '/api') return { routes: ROUTES.map(([route, about]) => ({ route, about })) };
+
   if (p === '/api/health') {
-    return { ok: true, currentSeason: currentSeasonId(), cached: cache.size, diskCache: Boolean(db), built: fs.existsSync(path.join(DIST_DIR, 'index.html')) };
+    return {
+      ok: true, currentSeason: currentSeasonId(), cache: cache.stats(),
+      built: fs.existsSync(path.join(DIST_DIR, 'index.html')), xgModel: shots.MODEL_VERSION,
+    };
   }
 
-  if (p === '/api/seasons') return { current: currentSeasonId(), seasons: await getSeasons() };
+  if (p === '/api/seasons') return { current: currentSeasonId(), seasons: await L.getSeasons() };
 
   if (p === '/api/standings') {
     const season = parseSeason(q.get('season'));
-    return { season, teams: await getStandings(season) };
+    return { season, teams: await L.getStandings(season) };
   }
+
+  if (p === '/api/teams/stats') {
+    const season = parseSeason(q.get('season'));
+    const gameType = parseGameType(q.get('gameType'));
+    return { season, gameType, teams: await L.getTeamStats(season, gameType) };
+  }
+
+  if ((m = p.match(/^\/api\/team\/([A-Za-z]{3})\/schedule$/))) {
+    const team = parseTeam(m[1]);
+    const season = parseSeason(q.get('season'));
+    return { team, season, games: await L.getSchedule(team, season) };
+  }
+
+  if ((m = p.match(/^\/api\/team\/([A-Za-z]{3})\/shots$/))) {
+    return shots.getTeamShots(parseTeam(m[1]), parseSeason(q.get('season')), parseGameType(q.get('gameType')));
+  }
+
+  if (p === '/api/league/race') return L.getRace(parseSeason(q.get('season')));
 
   if (p === '/api/skaters') {
     const season = parseSeason(q.get('season'));
     const gameType = parseGameType(q.get('gameType'));
-    let rows = await getSkaters(season, gameType);
-
+    let rows = await L.getSkaters(season, gameType);
     const team = (q.get('team') || '').toUpperCase();
     const pos = (q.get('pos') || '').toUpperCase();
     const name = (q.get('q') || '').toLowerCase();
     if (team) rows = rows.filter((r) => r.teams.includes(team));
-    if (pos) rows = rows.filter((r) => r.pos === pos);
+    if (pos === 'F') rows = rows.filter((r) => r.pos !== 'D');
+    else if (pos) rows = rows.filter((r) => r.pos === pos);
     if (name) rows = rows.filter((r) => (r.name || '').toLowerCase().includes(name));
-
-    const sort = q.get('sort') || 'points';
-    if (!SORTABLE.has(sort)) throw new HttpError(400, `sort must be one of: ${[...SORTABLE].join(', ')}`);
-    const dir = q.get('dir') === 'asc' ? 1 : -1;
-    rows = [...rows].sort((a, b) => dir * ((a[sort] ?? 0) - (b[sort] ?? 0)) || (b.points ?? 0) - (a.points ?? 0));
-
-    const total = rows.length;
-    const limit = Math.min(Math.max(parseInt(q.get('limit'), 10) || 50, 1), 2000);
-    return { season, gameType, total, players: rows.slice(0, limit) };
+    rows = sortRows(rows, q, SKATER_SORT, 'points');
+    return { season, gameType, total: rows.length, players: rows.slice(0, limitOf(q)) };
   }
 
-  if ((m = p.match(/^\/api\/player\/(\d+)$/))) return getPlayer(m[1]);
+  if (p === '/api/goalies') {
+    const season = parseSeason(q.get('season'));
+    const gameType = parseGameType(q.get('gameType'));
+    let rows = await L.getGoalies(season, gameType);
+    const team = (q.get('team') || '').toUpperCase();
+    const minGp = parseInt(q.get('minGp'), 10) || 0;
+    if (team) rows = rows.filter((r) => r.teams.includes(team));
+    if (minGp) rows = rows.filter((r) => r.gp >= minGp);
+    rows = sortRows(rows, q, GOALIE_SORT, 'wins', ['gaa']);
+    return { season, gameType, total: rows.length, goalies: rows.slice(0, limitOf(q)) };
+  }
+
+  if (p === '/api/percentiles') {
+    const season = parseSeason(q.get('season'));
+    const gameType = parseGameType(q.get('gameType'));
+    const pos = (q.get('pos') || '').toUpperCase();
+    if (pos && pos !== 'F' && pos !== 'D') throw new HttpError(400, 'pos must be F (forwards) or D (defense)');
+    const data = await L.getPercentiles(season, gameType);
+    const players = Object.values(data.players).filter((x) => x.eligible && (!pos || x.group === pos));
+    return { season, gameType, minGp: data.minGp, poolSize: data.poolSize, metrics: data.metrics, players };
+  }
+
+  if ((m = p.match(/^\/api\/player\/(\d+)$/))) return L.getPlayer(m[1]);
 
   if ((m = p.match(/^\/api\/player\/(\d+)\/gamelog$/))) {
     const season = parseSeason(q.get('season'));
     const gameType = parseGameType(q.get('gameType'));
-    return { season, gameType, games: await getGameLog(m[1], season, gameType) };
+    return { season, gameType, games: await L.getGameLog(m[1], season, gameType) };
   }
 
-  throw new HttpError(404, 'Unknown API route');
+  if ((m = p.match(/^\/api\/player\/(\d+)\/percentiles$/))) {
+    const season = parseSeason(q.get('season'));
+    const gameType = parseGameType(q.get('gameType'));
+    const data = await L.getPercentiles(season, gameType);
+    const row = data.players[m[1]];
+    if (!row) throw new HttpError(404, 'No skater stats for this player in that season (goalies are not ranked here)');
+    return { season, gameType, minGp: data.minGp, poolSize: data.poolSize[row.group], metrics: data.metrics, ...row };
+  }
+
+  if ((m = p.match(/^\/api\/player\/(\d+)\/shots$/))) {
+    return shots.getPlayerShots(m[1], parseSeason(q.get('season')), parseGameType(q.get('gameType')));
+  }
+
+  if ((m = p.match(/^\/api\/game\/(\d+)\/shots$/))) return shots.getGameShots(m[1]);
+
+  throw new HttpError(404, 'Unknown API route (see /api for the list)');
 }
 
 const MIME = {
@@ -317,7 +224,7 @@ const server = http.createServer(async (req, res) => {
   try {
     if (req.method !== 'GET') throw new HttpError(405, 'GET only');
     const url = new URL(req.url, `http://${HOST}`);
-    if (url.pathname.startsWith('/api/')) return sendJson(res, 200, await handleApi(url));
+    if (url.pathname === '/api' || url.pathname.startsWith('/api/')) return sendJson(res, 200, await handleApi(url));
     serveStatic(url.pathname, res);
   } catch (err) {
     const status = err instanceof HttpError ? err.status : 500;

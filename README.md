@@ -2,7 +2,7 @@
 
 A local web app for exploring NHL team and player stats with charts. It runs on your own computer, pulls data from the NHL's public (unofficial) JSON APIs, and shows it in a dark, broadcast-style interface. Personal, non-commercial use.
 
-**Status:** Version 2 is being rebuilt in steps (React + TypeScript + ECharts). Step 1, the foundation, is done: app shell, design system, search, disk cache, and the League overview page. The original app is still available at `/legacy` until each part is replaced.
+**Status:** Version 2 is being rebuilt in steps (React + TypeScript + ECharts). Steps 1 and 2 are done: the app shell, design system, search and League overview page, plus the expanded data layer (player bios, percentiles, schedules, goalies, team stats, shot data and expected goals). The original app is still available at `/legacy` until each part is replaced.
 
 ## Contents
 
@@ -13,6 +13,7 @@ A local web app for exploring NHL team and player stats with charts. It runs on 
 - [Architecture](#architecture)
 - [Design system](#design-system)
 - [API reference](#api-reference)
+- [Shot data and expected goals](#shot-data-and-expected-goals)
 - [Testing without the NHL API](#testing-without-the-nhl-api)
 - [Known limitations](#known-limitations)
 - [Updating GitHub](#updating-github)
@@ -35,7 +36,11 @@ npm run build      # compiles the React app into dist/
 npm start          # serves everything from http://localhost:3000
 ```
 
-Other commands: `npm run typecheck` checks the TypeScript without building.
+Other commands:
+
+- `npm run check` (with the server running) calls every API route against live NHL data and prints a table of what came back. Run it after NHL changes or when a chart looks empty.
+- `npm run typecheck` checks the TypeScript without building.
+- `http://localhost:3000/api` lists every data route, so you can click through them in a browser.
 
 The server only listens on `127.0.0.1`, so it is not reachable from other machines. To use another port: `set PORT=4000 && npm start` (Windows cmd) or `$env:PORT=4000; npm start` (PowerShell).
 
@@ -62,7 +67,7 @@ Throughout the app:
 Each step is delivered, tested and pushed before the next one starts.
 
 1. **Foundation** *(done)*: Vite + React + TypeScript, design system, 32-team color map, app shell with sidebar and Ctrl+K search, SQLite disk cache, League overview page.
-2. **Data expansion:** player bio, league percentiles by position, team schedules and results, goalies, play-by-play shot data with a simple expected-goals (xG) model.
+2. **Data expansion** *(done)*: player bio, percentile ranks by position, team schedules and results, league points race, goalies, team shot and special-teams stats, play-by-play shot data with an expected-goals (xG) model, and an API check script.
 3. **Player card + player page:** team-colored cards with bio, percentile ranks, last-10 sparkline, career arc, PNG export.
 4. **Teams hub + team pages:** points-pace race, home/road splits, rolling form, roster as cards.
 5. **Advanced charts:** shot maps and heat maps on a drawn rink, PDO and shot-share quadrants, standings bump chart.
@@ -74,13 +79,20 @@ Each step is delivered, tested and pushed before the next one starts.
 
 ```
 nhl-analytics/
-├── server.js              Data server: proxies + caches the NHL APIs, serves the app
+├── server.js              Data server: API routes + serves the app
+├── lib/                   Server modules (plain Node, no dependencies)
+│   ├── util.js            Errors, season ids, input checks, concurrency helper
+│   ├── cache.js           Memory + SQLite disk cache (raw responses and computed results)
+│   ├── loaders.js         Standings, skaters, goalies, team stats, players, schedules,
+│   │                      points race, percentiles
+│   └── shots.js           Play-by-play shots, rink normalization, expected-goals model
 ├── package.json           Scripts and dependencies
 ├── vite.config.mts        Vite: React plugin, dev proxy to server.js
 ├── tsconfig.json          TypeScript settings
 ├── index.html             Entry page for the React app
 ├── scripts/
-│   └── dev.js             Runs server.js and Vite together for npm run dev
+│   ├── dev.js             Runs server.js and Vite together for npm run dev
+│   └── check-api.js       npm run check: tests every route against live data
 ├── static/                Files copied as-is into the build (favicon)
 ├── src/                   The React app
 │   ├── main.tsx           Boots React and the router
@@ -115,11 +127,13 @@ Browser ──> Vite :5173 (dev only) ──> server.js :3000 ──> api-web.nh
                                        └─ /*       built React app (dist/)
 ```
 
-**Server (`server.js`)**
-- Still zero-dependency: Node's built-in `fetch` and, new in v2, Node's built-in SQLite (`node:sqlite`).
-- `getJson()` checks memory, then the disk cache (`data/cache.db`), then the NHL. It shares one in-flight request between callers, times out after 15 seconds, and serves the last cached copy if the NHL is unreachable.
-- Because the cache is on disk, past seasons are fetched once and then load instantly, even after a restart. Delete the `data` folder to clear it. If SQLite isn't available, the server prints a note and uses memory only.
-- Cache lifetimes: 5 minutes for the current season, 24 hours for past seasons, 10 minutes for player profiles, 6 hours for the season list.
+**Server (`server.js` + `lib/`)**
+- Still zero-dependency: Node's built-in `fetch` and Node's built-in SQLite (`node:sqlite`).
+- `getJson()` checks memory, then the disk cache (`data/cache.db`), then the NHL. It shares one in-flight request between callers, times out after 20 seconds, and serves the last cached copy if the NHL is unreachable.
+- `derived()` caches things the server computes (shots parsed from a play-by-play, percentile tables, the points race). Shots from finished games are kept for good, so the large play-by-play files themselves are never stored, only the small parsed result.
+- Because the cache is on disk, past seasons and finished games are fetched once and then load instantly, even after a restart or with the internet down. Delete the `data` folder to clear it. If SQLite isn't available, the server prints a note and uses memory only.
+- Cache lifetimes: 5 minutes for the current season, 24 hours for past seasons, 10 minutes for player profiles, 6 hours for the season list, 1 minute for games in progress.
+- At most 4 to 6 NHL requests run at once when a route needs many (a team's season of play-by-plays, all 32 schedules), to stay polite to the NHL's servers.
 - Static files: the built app first, then the original app's files, then the React app's `index.html` for its own page addresses (such as `/teams/TOR`). Paths that escape those folders are refused.
 
 **Frontend (`src/`)**
@@ -141,16 +155,39 @@ The look is a dark broadcast style drawn from the rink at night. All values live
 
 ## API reference
 
-All routes are GET. `season` looks like `20252026` (default: current season). `gameType` is `2` for regular season (default) or `3` for playoffs. Errors return JSON `{ "error": "..." }` with an HTTP error status (400 bad input, 404 not found, 502 NHL unreachable).
+All routes are GET; `http://localhost:3000/api` lists them. `season` looks like `20252026` (default: current season). `gameType` is `2` for regular season (default) or `3` for playoffs. Errors return JSON `{ "error": "..." }` with an HTTP status (400 bad input, 404 not found, 502 NHL unreachable). Missing NHL fields come back as `null` rather than breaking the response.
+
+**League and teams**
 
 | Route | Returns |
 |---|---|
-| `/api/health` | Server status, current season, cache size |
+| `/api/health` | Server status, current season, cache info, xG model version |
 | `/api/seasons` | `{ current, seasons[] }` with each season's start and end dates |
-| `/api/standings?season=` | Per team: name, logo, conference, division, GP, W, L, OTL, points, point %, regulation wins, GF, GA, goal differential, home/road/last-10 records, streak, rank |
-| `/api/skaters?season=&gameType=&team=&pos=&q=&sort=&dir=&limit=` | Skaters with goals, assists, points, shots, shooting %, plus/minus, PIM, TOI per game, points per game, power-play points, game-winning goals. `team` is an abbreviation, `pos` is `C`, `L`, `R` or `D`, `q` is a name search, `dir` is `asc` or `desc`, `limit` is 1 to 2000 (default 50). Sort fields: `goals`, `assists`, `points`, `shots`, `gp`, `shootingPct`, `plusMinus`, `pim`, `toiPerGame`, `pointsPerGame`, `ppPoints`, `gwg` |
-| `/api/player/:id` | Name, team, position, number, headshot, career and featured stats, NHL regular-season totals per season, last 5 games |
-| `/api/player/:id/gamelog?season=&gameType=` | Game-by-game: date, opponent, home/road, goals, assists, points, shots, plus/minus, PIM, TOI |
+| `/api/standings?season=` | Per team: name, logo, conference, division, GP, W, L, OTL, points, point %, regulation wins, GF, GA, goal differential, home/road/last-10 records, streak, ranks |
+| `/api/teams/stats?season=&gameType=` | Per team: goals and shots for/against per game, shot share, shooting %, save %, PDO, power-play %, penalty-kill %, faceoff %. Matched to standings by team name to add the abbreviation and logo. |
+| `/api/team/:abbrev/schedule?season=` | Every game: date, opponent, home/road, score, result (W, L, OTL), decided in REG/OT/SO, regular-season game number and running points total |
+| `/api/league/race?season=` | For every team, cumulative points after each game (for pace, race and bump charts). Loads all 32 schedules, so the first call takes a few seconds. |
+| `/api/team/:abbrev/shots?season=&gameType=` | Every shot attempt for and against the team in finished games, with xG, plus season totals (all situations and 5-on-5) and a per-game table. See below. |
+
+**Players**
+
+| Route | Returns |
+|---|---|
+| `/api/skaters?season=&gameType=&team=&pos=&q=&sort=&dir=&limit=` | Skaters with goals, assists, points, shots, shooting %, plus/minus, PIM, TOI per game, points per game, even-strength / power-play / shorthanded goals and points, game-winning and OT goals, faceoff %, and (from the NHL's "realtime" report) hits, blocked shots, giveaways, takeaways. `pos` is `C`, `L`, `R`, `D` or `F` (all forwards). Sort fields: `goals`, `assists`, `points`, `shots`, `gp`, `shootingPct`, `plusMinus`, `pim`, `toiPerGame`, `pointsPerGame`, `ppPoints`, `gwg`, `hits`, `blocks`. `limit` 1 to 2000 (default 50). |
+| `/api/goalies?season=&gameType=&team=&minGp=&sort=&dir=&limit=` | Goalies with GP, starts, W-L-OTL, save %, GAA, shutouts, saves, shots against. Sort: `gp`, `wins`, `savePct`, `gaa` (lowest first), `shutouts`, `saves`. |
+| `/api/percentiles?season=&gameType=&pos=F\|D` | Percentile ranks (0 to 100) for every eligible skater on 11 measures, ranked within forwards or defense. Eligible means at least a quarter of the league-high games played (capped at 20 GP). |
+| `/api/player/:id` | Name, team, number, position, headshot, **bio** (birth date, age, birthplace, height, weight, shoots, draft year/team/round/pick), NHL regular-season and playoff totals per season, awards |
+| `/api/player/:id/gamelog?season=&gameType=` | Game by game: game id, date, opponent, home/road, goals, assists, points, shots, plus/minus, PIM, TOI (goalies: decision, save %, shots and goals against) |
+| `/api/player/:id/percentiles?season=&gameType=` | One skater's values and percentiles, the measure list, and the size of the group they're ranked in |
+| `/api/player/:id/shots?season=&gameType=` | Every shot attempt by the skater, with xG, plus goals vs. expected goals |
+
+**Games**
+
+| Route | Returns |
+|---|---|
+| `/api/game/:id/shots` | Every shot attempt in one game (id like `2025020001`): shooter, team, type, period, time, location, distance, angle, strength, rebound, empty net, xG |
+
+The 11 percentile measures: points, goals, assists, shots, hits, blocked shots and takeaways per 60 minutes of ice time; shooting % (20+ shots); time on ice per game; power-play points per game; plus/minus per game.
 
 **Upstream endpoints used**
 
@@ -158,11 +195,35 @@ All routes are GET. `season` looks like `20252026` (default: current season). `g
 |---|---|
 | `api-web.nhle.com/v1/standings/{now \| YYYY-MM-DD}` | Standings |
 | `api-web.nhle.com/v1/standings-season` | Season list and end dates |
-| `api.nhle.com/stats/rest/en/skater/summary` (filtered with `cayenneExp`) | Full skater tables |
-| `api-web.nhle.com/v1/player/{id}/landing` | Player profile and season totals |
-| `api-web.nhle.com/v1/player/{id}/game-log/{season}/{gameType}` | Game logs |
+| `api-web.nhle.com/v1/club-schedule-season/{team}/{season}` | Schedules, results, points race |
+| `api-web.nhle.com/v1/player/{id}/landing` | Player profile, bio, season totals, awards |
+| `api-web.nhle.com/v1/player/{id}/game-log/{season}/{gameType}` | Game logs (and which games to read shots from) |
+| `api-web.nhle.com/v1/gamecenter/{id}/play-by-play` | Shot locations and details |
+| `api.nhle.com/stats/rest/en/skater/summary` | Skater scoring |
+| `api.nhle.com/stats/rest/en/skater/realtime` | Hits, blocks, giveaways, takeaways |
+| `api.nhle.com/stats/rest/en/goalie/summary` | Goalie stats |
+| `api.nhle.com/stats/rest/en/team/summary` | Team shots and special teams |
 
-**Data notes:** shooting percentage comes back as a fraction (0.16) and is shown as a percentage; time on ice comes back in seconds and is shown as mm:ss; multi-team players come back as a comma-separated team string and are split into a list.
+**Data notes:** shooting and save percentages come back as fractions (0.16) and are shown as percentages; time on ice comes back in seconds; multi-team players come back as a comma-separated team string and are split into a list.
+
+## Shot data and expected goals
+
+**Where shots come from.** Each game's play-by-play lists every goal, shot on goal, missed shot and blocked shot with rink coordinates (feet from center ice, nets at x = ±89). The server flips every shot so the team shooting always attacks the net on the right (x = +89), so one half-rink can show a whole season. Which way a team is attacking comes from the feed's own flag each period, with a fallback to where most of that team's shots were taken. Each shot's team is taken from the game roster, which keeps blocked shots on the right side.
+
+**Strength** comes from the feed's situation code (skaters and goalies on the ice): `5v5`, `PP` (power play), `SH` (shorthanded) or `EV` (other even strength, such as 4-on-4). Empty-net shots are flagged.
+
+**Expected goals (xG)** is the chance an unblocked shot becomes a goal. The model is a logistic curve:
+
+- starts from shot distance (the biggest factor) and angle from the middle of the net
+- adjusts for shot type: tips and deflections up, backhands, slap shots and wraparounds down
+- adds a large bonus for rebounds (same team shot again within 3 seconds) and a small one on the power play
+- empty-net shots get a high fixed value; blocked shots get none
+
+Typical values: a 10-foot wrist shot from the slot is about 0.22, a rebound from there about 0.39, a 30-foot slap shot about 0.05, and a 60-foot shot about 0.01. The weights are set by hand to match the general shape of public hockey models, not fitted to NHL data, so read xG as approximate: good for comparing players and teams and for spotting luck (goals well above or below xG), not as an exact probability. The model has a version tag (`xg1`); if it changes, xG is recalculated from the cached shots automatically.
+
+**Shot-share stats** in the team summary: attempts share (Corsi), unblocked attempts share (Fenwick) and xG share, each for all situations and 5-on-5. 50% is even, and above 50% means a team controls play.
+
+**Speed.** A team's or player's season of shots needs one play-by-play per game. The first request for a season reads them (four at a time, roughly 10 to 30 seconds for a full season); after that every finished game comes from the disk cache instantly.
 
 ## Testing without the NHL API
 
@@ -172,14 +233,14 @@ The server reads its upstream addresses from two environment variables, so it ca
 NHL_WEB_BASE=http://127.0.0.1:4010 NHL_STATS_BASE=http://127.0.0.1:4010 npm start
 ```
 
-Step 1 of v2 was built and checked this way against a mock of 32 teams and about 700 invented players: desktop and phone widths, the Ctrl+K search, season switching, the disk cache, legacy routes and the SPA fallback. The mock server is not part of the repo.
+Steps 1 and 2 of v2 were built and checked this way against a mock of 32 teams, about 700 invented players, 64 goalies and a 40-day schedule with generated play-by-plays. Checked: desktop and phone widths, the Ctrl+K search, season switching, every API route (via `npm run check`), shot direction normalization, blocked-shot team assignment, xG values, and that cached games still load with the NHL unreachable. The mock server is not part of the repo.
 
 ## Known limitations
 
 - **Unofficial API.** The NHL can change or remove these endpoints without notice, and its [terms of service](https://www.nhl.com/info/terms-of-service) limit reuse to personal, non-commercial use. If a page shows a "Couldn't load" banner, check the terminal where the server is running.
-- **Real-data check pending for v2 step 1.** The League overview uses the same endpoints as the original Teams and Players pages (already confirmed live), but its layout was checked on mock data. Worth eyeballing on first run: team logos in the strength chart, and early-season leaders where many players are tied.
+- **Real-data check for step 2.** The new routes follow the community API reference but were tested on mock data. Run `npm run check` once against live data: it shows which fields came back filled. Most likely to need a tweak: the realtime report fields (hits, blocks), team-stats name matching, and play-by-play shot fields.
 - **Early-season data is sparse.** In the first weeks many players are tied (tied players share a rank in the leaders list) and the strength chart's teams sit close together. Points per game only counts players with at least 40% of the league-high games played.
-- **Skaters only.** Goalies arrive in step 8.
+- **Goalies** have data routes now; their pages arrive in step 8. Percentile ranks cover skaters only.
 - **Past seasons** are limited to 2005-06 onward (the shootout era), because older seasons include ties and a different points system.
 - **Logos and headshots** load from NHL servers, so they only appear while online; they are hidden if they fail to load.
 - **Playoffs** data only exists once the playoffs begin, so that option shows an empty state before then.
