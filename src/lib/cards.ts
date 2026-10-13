@@ -6,7 +6,7 @@ import type { GameLogEntry, Player, PlayerPercentiles, PlayerSeason, PercentileK
 import { fmtDec, fmtMetric, fmtSigned, fmtSv, seasonLabel } from './format';
 
 export interface CardStat { label: string; value: string; title?: string }
-export interface CardPct { key: PercentileKey; label: string; value: string; pct: number }
+export interface CardPct { key: string; label: string; value: string; pct: number }
 
 export interface CardData {
   id: number;
@@ -73,6 +73,8 @@ export function chronological(games: GameLogEntry[]): GameLogEntry[] {
 export function buildCard(player: Player, season: string, opts: {
   percentiles?: PlayerPercentiles | null;
   games?: GameLogEntry[] | null;
+  /** Goalie ranks, built from the league goalie list (see lib/goalies.ts). */
+  goalieRanks?: { pct: CardPct[]; note: string | null } | null;
 } = {}): CardData {
   const isGoalie = player.pos === 'G';
   const s = seasonTotals(player.seasons, season);
@@ -93,8 +95,8 @@ export function buildCard(player: Player, season: string, opts: {
         { label: '+/−', value: fmtSigned(s?.plusMinus ?? 0), title: 'Plus/minus' },
       ];
 
-  let pct: CardPct[] = [];
-  let pctNote: string | null = null;
+  let pct: CardPct[] = isGoalie && opts.goalieRanks ? opts.goalieRanks.pct : [];
+  let pctNote: string | null = isGoalie && opts.goalieRanks ? opts.goalieRanks.note : null;
   const pr = opts.percentiles;
   if (!isGoalie && pr) {
     if (!pr.eligible) {

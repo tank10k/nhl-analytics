@@ -1,18 +1,17 @@
-import { useState } from 'react';
-import { NavLink, Outlet } from 'react-router';
+import { useEffect, useState } from 'react';
+import { NavLink, Outlet, useLocation } from 'react-router';
 import { useSeason } from '../lib/season';
 import { seasonLabel } from '../lib/format';
 import { CommandPalette, usePaletteHotkey } from './CommandPalette';
 import { IconCompare, IconGames, IconGoalies, IconLeague, IconPlayers, IconSearch, IconTeams } from './Icons';
 
-// `step` marks sections that later build steps fill in.
 const NAV = [
   { to: '/', label: 'League', icon: IconLeague, end: true },
   { to: '/teams', label: 'Teams', icon: IconTeams },
   { to: '/players', label: 'Players', icon: IconPlayers },
   { to: '/compare', label: 'Compare', icon: IconCompare },
   { to: '/games', label: 'Games', icon: IconGames },
-  { to: '/goalies', label: 'Goalies', icon: IconGoalies, step: 8 },
+  { to: '/goalies', label: 'Goalies', icon: IconGoalies },
 ];
 
 const isMac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform);
@@ -21,6 +20,11 @@ export function Shell() {
   const { season, seasons, setSeason, link } = useSeason();
   const [paletteOpen, setPaletteOpen] = useState(false);
   usePaletteHotkey(setPaletteOpen);
+  const { pathname } = useLocation();
+
+  // A new page starts at the top. Changing only the query (season, date, compare
+  // picks) keeps the scroll position.
+  useEffect(() => { window.scrollTo(0, 0); }, [pathname]);
 
   return (
     <div className="shell">
@@ -30,11 +34,10 @@ export function Shell() {
           <span className="brand-name">NHL Analytics<small>Teams, players and trends</small></span>
         </NavLink>
         <nav className="nav" aria-label="Sections">
-          {NAV.map(({ to, label, icon: Icon, end, step }) => (
+          {NAV.map(({ to, label, icon: Icon, end }) => (
             <NavLink key={to} to={link(to)} end={end} className={({ isActive }: { isActive: boolean }) => `nav-link${isActive ? ' active' : ''}`}>
               <Icon />
               {label}
-              {step && <span className="soon">Step {step}</span>}
             </NavLink>
           ))}
         </nav>
@@ -60,7 +63,9 @@ export function Shell() {
           </label>
         </header>
         <main className="content">
-          <Outlet />
+          <div className="page-enter" key={pathname}>
+            <Outlet />
+          </div>
         </main>
       </div>
 

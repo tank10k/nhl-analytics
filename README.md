@@ -2,7 +2,7 @@
 
 A local web app for exploring NHL team and player stats with charts. It runs on your own computer, pulls data from the NHL's public (unofficial) JSON APIs, and shows it in a dark, broadcast-style interface. Personal, non-commercial use.
 
-**Status:** Version 2 is being rebuilt in steps (React + TypeScript + ECharts). Steps 1 to 7 are done: the app shell, design system, search and League overview page; the expanded data layer (player bios, percentiles, schedules, goalies, team stats, shot data and expected goals); the Players hub, player pages and player cards; the Teams hub and team-themed team pages; and the advanced charts (shot maps, danger-zone heat maps, expected-goals trends, a skill-vs-luck quadrant and a standings bump chart); the Compare tool for players and teams; and the Games section (scoreboard, game flow and per-game shot maps). The original app is still available at `/legacy` until each part is replaced.
+**Status:** Version 2 is complete (React + TypeScript + ECharts), built in eight steps: League overview, Teams hub and team pages, Players hub, player pages and player cards, advanced shot and trend charts, the Compare tool, the Games section (scoreboard, game flow, per-game shot maps and box scores) and the Goalies section (leaderboard, goalie cards, goals saved above average and above expected). The original app is still served at `/legacy` for reference.
 
 ## Contents
 
@@ -56,14 +56,16 @@ The server only listens on `127.0.0.1`, so it is not reachable from other machin
 | `/compare` | **Compare** up to three players or three teams. Players: search to add, a card for each, an overlaid percentile radar (9 measures, each player ranked within his position group), running totals by game number (points, goals, assists or shots), and a head-to-head table with the leader in each row marked ▲. Teams: a tile for each, a radar of where each team stands among all 32 in nine areas, the points race, a head-to-head table, and the season series when two teams are compared. Each player or team keeps one color (blue, orange, green) in every chart. The selection is kept in the address (`/compare?players=8478402,8477934` or `/compare?teams=TOR,BOS`), and player and team pages have a "Compare with others" link. | Done (step 6) |
 | `/games` | **Scoreboard** for any date (today by default, `?date=YYYY-MM-DD`), with previous/next day and a date picker. Live games come first, then upcoming, then finals; each tile shows score, shots on goal and period/clock. While a game is live the page refreshes every 30 seconds (only while the tab is visible). Today's games also appear as a strip on the League overview. | Done (step 7) |
 | `/games/ID` | **Game page.** Header in both teams' colors with score and status; a **game-flow chart** (running expected goals, shot attempts or shots on goal for each team across the game clock, goals marked, hover a goal for scorer, assists, situation and chance quality); a **full-rink shot map** with both teams (home attacks right, away left); the scoring summary by period with running score and PP/SH/EN tags; team stat bars (shots, hits, faceoffs, power play and more); the box score for both teams. Live games refresh every 30 seconds. Results on team pages link here. | Done (step 7) |
-| `/goalies` | Goalie leaderboards and cards | Step 8 |
-| `/legacy` | The original app (Teams, Players, Player detail) | Kept until replaced |
+| `/goalies` | **Goalies hub.** Filters (regular season or playoffs, team, minimum games, defaulting to the qualified group, name search); cards for the four goalies who have saved the most goals above average, each with percentile ranks among qualified goalies (save %, saves above average, GAA, win rate, workload, shutouts); a diverging bar chart of **goals saved above average** (GSAA); a **workload and quality** scatter (games started against save %, with the league save % and median starts splitting it into four groups); a sortable, paged leaderboard with GSAA, shots against per 60 and minutes. | Done (step 8) |
+| `/players/ID` (goalies) | **Goalie page.** Goalie card with percentile ranks; save % form; **goals saved above expected** game by game with a running total; a **shots-faced map** (every unblocked shot he faced, with goals against, expected goals against and high-danger save %); career arc; game log. | Done (step 8) |
+| `/legacy` | The original app (Teams, Players, Player detail) | Kept for reference |
 
 Throughout the app:
 
 - **Search:** press **Ctrl+K** (or **/**) anywhere to jump to any player or team. Arrow keys to move, Enter to open.
 - **Season picker** (top right) covers 2005-06 to the current season. The season is kept in the address as `?season=20252026`, so any view can be bookmarked, and links between pages carry it along.
-- Sections not yet rebuilt show what's coming and link to the same view in the original app.
+- **Search** includes goalies (shown with wins instead of points).
+- Each page sets the browser tab title ("Connor McDavid · NHL Analytics"), opens scrolled to the top, and fades in (turned off when the system asks for reduced motion).
 
 ### Player cards
 
@@ -103,7 +105,7 @@ Each step is delivered, tested and pushed before the next one starts.
 5. **Advanced charts** *(done)*: shot maps and danger-zone heat maps on a drawn rink (team and player pages), expected-goals trend, skill-or-luck quadrant, standings bump chart.
 6. **Compare tool** *(done)*: up to three players or teams with overlaid radar, shared trend lines, head-to-head tables and season series.
 7. **Games** *(done)*: scoreboard by date with live refresh, Today strip on the overview, game pages with game flow, full-rink shot map, scoring summary, team stats and box score.
-8. **Goalies, then polish:** goalie cards, animations, performance, final README.
+8. **Goalies, then polish** *(done)*: Goalies hub with GSAA chart, workload scatter and leaderboard; goalie cards with percentile ranks; goalie pages with goals saved above expected and a shots-faced map; goalies in search; page titles, scroll reset and page transitions; a fuller `npm run check`.
 
 ## Project structure
 
@@ -139,6 +141,8 @@ nhl-analytics/
 │   │   ├── stats.ts       Rolling averages, ranks
 │   │   ├── types.ts       Shapes of the /api responses
 │   │   ├── games.ts       Period names, game status text, game-clock minutes
+│   │   ├── goalies.ts     League save %, GSAA, qualification and goalie percentile ranks
+│   │   ├── title.ts       Browser tab title per page
 │   │   └── format.ts      Number, record, percentage and time formatting
 │   ├── charts/
 │   │   ├── EChart.tsx     React wrapper around ECharts (resize, cleanup)
@@ -158,7 +162,8 @@ nhl-analytics/
 │       ├── home/          Its parts: StrengthQuadrant, Leaders, DivisionTables
 │       ├── players/       Players hub: PlayersPage, ProductionScatter
 │       ├── player/        Player page: PlayerPage, PercentilePanel, SeasonPace,
-│       │                  FormChart, CareerChart, GameLogTable, PlayerShots
+│       │                  FormChart, CareerChart, GameLogTable, PlayerShots,
+│       │                  GoalieShots (goalie pages: GSAx trend, shots faced)
 │       ├── compare/       Compare: ComparePage (mode + address), Pickers, ComparePlayers, CompareTeams
 │       ├── games/         Scoreboard: GamesPage (+ Today strip), ScoreTile, live refresh hook
 │       ├── game/          Game page: GamePage (header, scoring, team bars, box score),
@@ -167,7 +172,8 @@ nhl-analytics/
 │       ├── team/          Team page: TeamPage, TeamHero, TeamKpis, TeamCharts
 │       │                  (results strip, rolling form), TeamShots (shot map, xG trend),
 │       │                  TeamTables (splits, roster, schedule)
-│       └── ComingSoon.tsx Placeholder for sections built in later steps
+│       ├── goalies/       Goalies hub: GoaliesPage (cards, leaderboard), GoalieCharts (GSAA bars, workload scatter)
+│       └── NotFound.tsx   Unknown addresses
 ├── public/                The original app (served at /legacy), unchanged
 ├── dist/                  Built app (created by npm run build; not in git)
 └── data/                  cache.db, the disk cache (created on first run; not in git)
@@ -235,6 +241,7 @@ All routes are GET; `http://localhost:3000/api` lists them. `season` looks like 
 | `/api/player/:id/gamelog?season=&gameType=` | Game by game: game id, date, opponent, home/road, goals, assists, points, shots, plus/minus, PIM, TOI (goalies: decision, save %, shots and goals against) |
 | `/api/player/:id/percentiles?season=&gameType=` | One skater's values and percentiles, the measure list, and the size of the group they're ranked in |
 | `/api/player/:id/shots?season=&gameType=` | Every shot attempt by the skater, with xG, plus goals vs. expected goals |
+| `/api/goalie/:id/shots?season=&gameType=` | Every unblocked shot a goalie faced while in net, with xG, plus goals against, expected goals against, goals saved above expected (GSAx), high-danger shots and a per-game table |
 
 **Games**
 
@@ -288,6 +295,11 @@ Typical values: a 10-foot wrist shot from the slot is about 0.22, a rebound from
 
 **Shot-share stats** in the team summary: attempts share (Corsi), unblocked attempts share (Fenwick) and xG share, each for all situations and 5-on-5. 50% is even, and above 50% means a team controls play.
 
+**Goalies.** Two measures of how many goals a goalie has kept out:
+
+- **GSAA (goals saved above average)** on the Goalies hub: his saves minus the saves a goalie with the league save percentage would make on the same number of shots. Simple and available for every season, but blind to shot quality.
+- **GSAx (goals saved above expected)** on goalie pages: the expected goals of every unblocked shot he faced while in net, minus the goals he allowed. A goalie behind a leaky defense who faces many rebounds and slot shots is credited for that. Blocked attempts never reach him and empty-net shots aren't his, so both are left out. *High-danger* shots are those worth 0.15 xG or more.
+
 **Speed.** A team's or player's season of shots needs one play-by-play per game. The first request for a season reads them (four at a time, roughly 10 to 30 seconds for a full season); after that every finished game comes from the disk cache instantly.
 
 ## Testing without the NHL API
@@ -298,14 +310,15 @@ The server reads its upstream addresses from two environment variables, so it ca
 NHL_WEB_BASE=http://127.0.0.1:4010 NHL_STATS_BASE=http://127.0.0.1:4010 npm start
 ```
 
-Steps 1 to 7 of v2 were built and checked this way against a mock of 32 teams, about 700 invented players, 64 goalies and a 40-day schedule with generated play-by-plays. Checked: desktop and phone widths, the Ctrl+K search, season switching, every API route (via `npm run check`), shot direction normalization, blocked-shot team assignment, xG values, that cached games still load with the NHL unreachable, the Players hub filters and sorting, player pages for skaters, card flip and PNG export, the Teams hub and team pages (including light-colored teams such as Boston, where the banner switches to dark text), unknown team codes, early-season charts with only a few games played, shot maps and their tooltips, the quadrant and bump chart, the Compare tool (adding, removing and swapping players by search, switching to teams, the season series), the scoreboard (date paging, live-first order, the Today strip), game pages for final, live and unknown games (flow chart, full-rink shot map and tooltips, scoring, box score), and phone-width layouts. The mock server is not part of the repo.
+All eight steps of v2 were built and checked this way against a mock of 32 teams, about 700 invented players, 64 goalies and a 40-day schedule with generated play-by-plays. Checked: desktop and phone widths, the Ctrl+K search, season switching, every API route (via `npm run check`), shot direction normalization, blocked-shot team assignment, xG values, that cached games still load with the NHL unreachable, the Players hub filters and sorting, player pages for skaters, card flip and PNG export, the Teams hub and team pages (including light-colored teams such as Boston, where the banner switches to dark text), unknown team codes, early-season charts with only a few games played, shot maps and their tooltips, the quadrant and bump chart, the Compare tool (adding, removing and swapping players by search, switching to teams, the season series), the scoreboard (date paging, live-first order, the Today strip), game pages for final, live and unknown games (flow chart, full-rink shot map and tooltips, scoring, box score), the Goalies hub (cards with ranks, sorting, filters, chart clicks), goalie pages (GSAx trend and shots faced), goalies in search, page titles and scroll reset, and phone-width layouts. The mock server is not part of the repo.
 
 ## Known limitations
 
 - **Unofficial API.** The NHL can change or remove these endpoints without notice, and its [terms of service](https://www.nhl.com/info/terms-of-service) limit reuse to personal, non-commercial use. If a page shows a "Couldn't load" banner, check the terminal where the server is running.
 - **Real-data check for step 2.** The new routes follow the community API reference but were tested on mock data. Run `npm run check` once against live data: it shows which fields came back filled. Most likely to need a tweak: the realtime report fields (hits, blocks), team-stats name matching, and play-by-play shot fields.
 - **Early-season data is sparse.** In the first weeks many players are tied (tied players share a rank in the leaders list) and the strength chart's teams sit close together. Points per game only counts players with at least 40% of the league-high games played.
-- **Goalies** have data routes and player pages (card, form, career, game log); their leaderboard arrives in step 8. Percentile ranks cover skaters only.
+- **Goalie measures.** GSAA uses only save counts, so it doesn't know whether a goalie faced easy or hard shots; GSAx (on goalie pages) does, but it rests on the same hand-set xG model as everything else. Goalie percentile ranks are worked out in the browser from the goalie list, among goalies with a quarter of the league-high games (capped at 20).
+- **Goalie pages read every game he played** to build the shots-faced map, so the first visit for a season takes a few seconds, like player shot maps.
 - **Expected goals are uncalibrated.** The model is hand-set, so a team's or player's total xG can run a little above or below their real goals across the board. Compare xG between teams and players rather than reading "goals minus xG" as exact.
 - **Team pages for the current season** load the league race (all 32 schedules) once, which takes a few seconds the first time; it's cached after that.
 - **Roster** lists players whose most recent team this season is that club; a player traded away shows up on his new team.

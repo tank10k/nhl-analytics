@@ -11,6 +11,7 @@ import { C } from '../../charts/theme';
 import { ErrorNotice, Panel, Skeleton } from '../../components/Panel';
 import { useAutoRefresh } from '../games/ScoreTile';
 import { FlowChart, GameShotMap, nameOf } from './GameCharts';
+import { usePageTitle } from '../../lib/title';
 
 type Shot = GameShotsFull['shots'][number];
 
@@ -202,6 +203,7 @@ export function GamePage() {
   const shots = useApi<GameShotsFull>(`/api/game/${id}/shots`);
   const box = useApi<BoxResponse>(`/api/game/${id}/box`);
   const d = shots.data;
+  usePageTitle(d ? `${d.game.away.abbrev} ${d.game.away.score ?? ''} at ${d.game.home.abbrev} ${d.game.home.score ?? ''}`.replace(/ +/g, ' ').trim() : 'Game');
   const live = d?.game.state === 'LIVE' || d?.game.state === 'CRIT';
   const { retry: retryShots } = shots;
   const { retry: retryBox } = box;

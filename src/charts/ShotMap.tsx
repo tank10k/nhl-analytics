@@ -27,11 +27,13 @@ const dist = (s: MapShot) => Math.hypot(RINK.goalX - s.x, s.y);
  * Heat: unblocked attempts binned into hexagons, shaded by the expected goals produced
  *   from each zone (one hue, brighter = more danger).
  */
-export function ShotMap({ shots, accent, label, defaultView = 'dots' }: {
+export function ShotMap({ shots, accent, label, defaultView = 'dots', goalie = false }: {
   shots: MapShot[];
   accent: string;
   label: string;
   defaultView?: View;
+  /** Shots a goalie faced: the summary reads as goals against and saves above expected. */
+  goalie?: boolean;
 }) {
   const id = useId().replace(/:/g, '');
   const [view, setView] = useState<View>(defaultView);
@@ -151,13 +153,25 @@ export function ShotMap({ shots, accent, label, defaultView = 'dots' }: {
       </div>
 
       <dl className="shotmap-stats">
-        <div><dt>Attempts</dt><dd>{totals.attempts}</dd></div>
+        <div><dt>{goalie ? 'Shots faced' : 'Attempts'}</dt><dd>{totals.attempts}</dd></div>
         <div><dt>On goal</dt><dd>{totals.onGoal}</dd></div>
-        <div><dt>Goals</dt><dd>{totals.goals}</dd></div>
-        <div><dt>Expected goals</dt><dd>{totals.xg.toFixed(1)}</dd></div>
-        <div title="Goals minus expected goals: above zero means finishing better than the chances suggest">
-          <dt>Goals − xG</dt><dd>{(totals.goals - totals.xg) >= 0 ? '+' : '−'}{Math.abs(totals.goals - totals.xg).toFixed(1)}</dd>
-        </div>
+        {goalie ? (
+          <>
+            <div><dt>Goals against</dt><dd>{totals.goals}</dd></div>
+            <div><dt>Expected against</dt><dd>{totals.xg.toFixed(1)}</dd></div>
+            <div title="Expected goals against minus goals allowed: above zero means stopping more than the chances suggest">
+              <dt>Saved above exp.</dt><dd>{(totals.xg - totals.goals) >= 0 ? '+' : '−'}{Math.abs(totals.xg - totals.goals).toFixed(1)}</dd>
+            </div>
+          </>
+        ) : (
+          <>
+            <div><dt>Goals</dt><dd>{totals.goals}</dd></div>
+            <div><dt>Expected goals</dt><dd>{totals.xg.toFixed(1)}</dd></div>
+            <div title="Goals minus expected goals: above zero means finishing better than the chances suggest">
+              <dt>Goals − xG</dt><dd>{(totals.goals - totals.xg) >= 0 ? '+' : '−'}{Math.abs(totals.goals - totals.xg).toFixed(1)}</dd>
+            </div>
+          </>
+        )}
         <div><dt>Avg distance</dt><dd>{totals.unblocked ? `${(totals.distSum / totals.unblocked).toFixed(0)} ft` : '–'}</dd></div>
       </dl>
     </div>

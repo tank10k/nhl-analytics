@@ -359,3 +359,14 @@ export interface BoxGoalie {
 }
 export interface BoxSide extends GameTeam { skaters: BoxSkater[]; goalies: BoxGoalie[] }
 export interface BoxResponse { id: number; state: string | null; final: boolean; away: BoxSide; home: BoxSide }
+
+// ---------- Step 8: goalies ----------
+
+export interface GoalieShotsResponse {
+  playerId: number; season: string; gameType: string; model: string;
+  gamesRequested: number; gamesLoaded: number;
+  summary: { faced: number; onGoal: number; goalsAgainst: number; xga: number; gsax: number; highDanger: { faced: number; goalsAgainst: number } };
+  games: { id: number; date: string; faced: number; onGoal: number; goalsAgainst: number; xga: number; gsax: number }[];
+  columns: string[];
+  shots: CompactShot[];
+}

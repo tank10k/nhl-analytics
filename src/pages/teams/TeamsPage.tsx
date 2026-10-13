@@ -10,6 +10,7 @@ import { TeamLogo } from '../../components/TeamChip';
 import { PointsRace } from '../../charts/PointsRace';
 import { LogoScatter, type LogoPoint } from '../../charts/LogoScatter';
 import { BumpChart } from '../../charts/BumpChart';
+import { usePageTitle } from '../../lib/title';
 
 const DIVISION_ORDER = ['Atlantic', 'Metropolitan', 'Central', 'Pacific'];
 const divOrder = (d: string) => { const i = DIVISION_ORDER.indexOf(d); return i === -1 ? 99 : i; };
@@ -103,6 +104,7 @@ function TeamStatsTable({ stats, standings }: { stats: TeamStats[]; standings: T
 }
 
 export function TeamsPage() {
+  usePageTitle('Teams');
   const { season } = useSeason();
   const standings = useApi<StandingsResponse>(`/api/standings?season=${season}`);
   const stats = useApi<TeamStatsResponse>(`/api/teams/stats?season=${season}`);

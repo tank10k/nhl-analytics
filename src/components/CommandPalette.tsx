@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router';
 import { useApi } from '../lib/api';
 import { useSeason } from '../lib/season';
 import { posLabel } from '../lib/format';
-import type { SkatersResponse, StandingsResponse } from '../lib/types';
+import type { GoaliesResponse, SkatersResponse, StandingsResponse } from '../lib/types';
 import { IconSearch } from './Icons';
 import { TeamChip, TeamStripe } from './TeamChip';
 
@@ -35,6 +35,7 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
   // Only load the search index once the palette has been opened.
   const standings = useApi<StandingsResponse>(open ? `/api/standings?season=${season}` : null);
   const skaters = useApi<SkatersResponse>(open ? `/api/skaters?season=${season}&limit=2000` : null);
+  const goalies = useApi<GoaliesResponse>(open ? `/api/goalies?season=${season}&limit=500` : null);
 
   useEffect(() => {
     if (open) {
@@ -47,7 +48,12 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
   const results = useMemo<Result[]>(() => {
     const q = norm(query.trim());
     const teams = standings.data?.teams ?? [];
-    const players = skaters.data?.players ?? [];
+    // Goalies join the player list, ranked by wins where skaters rank by points.
+    type Hit = { id: number; name: string; teams: string[]; pos: string; rank: number; meta: string };
+    const players: Hit[] = [
+      ...(skaters.data?.players ?? []).map((p) => ({ id: p.id, name: p.name, teams: p.teams, pos: p.pos, rank: p.points, meta: `${p.points} pts` })),
+      ...(goalies.data?.goalies ?? []).map((g) => ({ id: g.id, name: g.name, teams: g.teams, pos: 'G', rank: (g.wins ?? 0) * 2, meta: `${g.wins ?? 0} W` })),
+    ];
 
     const teamHits = teams
       .map((t) => ({ t, s: q ? Math.max(score(t.name, q), score(t.abbrev, q)) : 1 }))
@@ -59,9 +65,9 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
       ? players
           .map((p) => ({ p, s: score(p.name, q) }))
           .filter((x) => x.s > 0)
-          .sort((a, b) => b.s - a.s || b.p.points - a.p.points)
+          .sort((a, b) => b.s - a.s || b.p.rank - a.p.rank)
           .slice(0, 8)
-      : [...players].sort((a, b) => b.points - a.points).slice(0, 6).map((p) => ({ p, s: 1 }));
+      : players.filter((p) => p.pos !== 'G').sort((a, b) => b.rank - a.rank).slice(0, 6).map((p) => ({ p, s: 1 }));
 
     return [
       ...teamHits.map(({ t }) => ({
@@ -86,13 +92,13 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
             <>
               <TeamStripe abbrev={team} />
               <span className="label">{p.name}</span>
-              <span className="meta">{p.teams.join('/')} · {posLabel[p.pos] ?? p.pos} · {p.points} pts</span>
+              <span className="meta">{p.teams.join('/')} · {posLabel[p.pos] ?? p.pos} · {p.meta}</span>
             </>
           ),
         };
       }),
     ];
-  }, [query, standings.data, skaters.data, link]);
+  }, [query, standings.data, skaters.data, goalies.data, link]);
 
   useEffect(() => setActive(0), [query]);
 

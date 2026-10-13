@@ -4,7 +4,7 @@ import { useApi } from '../../lib/api';
 import { useSeason } from '../../lib/season';
 import { buildCard, seasonTotals } from '../../lib/cards';
 import { ordinal, seasonLabel } from '../../lib/format';
-import type { GameLogEntry, Player, PlayerPercentiles } from '../../lib/types';
+import type { GameLogEntry, GoaliesResponse, Player, PlayerPercentiles } from '../../lib/types';
 import { ErrorNotice, Skeleton } from '../../components/Panel';
 import { PlayerCard } from '../../components/PlayerCard';
 import { PercentilePanel } from './PercentilePanel';
@@ -13,6 +13,9 @@ import { FormChart } from './FormChart';
 import { CareerChart } from './CareerChart';
 import { GameLogTable } from './GameLogTable';
 import { PlayerShots } from './PlayerShots';
+import { GoalieShots } from './GoalieShots';
+import { goalieLeague, goalieRanks } from '../../lib/goalies';
+import { usePageTitle } from '../../lib/title';
 import { teamAccent } from '../../lib/teams';
 
 function Lede({ player, season, pct }: { player: Player; season: string; pct?: PlayerPercentiles }) {
@@ -45,10 +48,16 @@ export function PlayerPage() {
   const isGoalie = player.data?.pos === 'G';
   const pct = useApi<PlayerPercentiles>(player.data && !isGoalie ? `/api/player/${id}/percentiles?season=${season}` : null);
   const log = useApi<{ games: GameLogEntry[] }>(`/api/player/${id}/gamelog?season=${season}`);
+  const goalies = useApi<GoaliesResponse>(isGoalie ? `/api/goalies?season=${season}&limit=500` : null);
+  const ranks = useMemo(
+    () => (isGoalie && goalies.data ? goalieRanks(goalieLeague(goalies.data.goalies), Number(id)) : null),
+    [isGoalie, goalies.data, id],
+  );
+  usePageTitle(player.data?.name);
 
   const card = useMemo(
-    () => (player.data ? buildCard(player.data, season, { percentiles: pct.data, games: log.data?.games }) : null),
-    [player.data, season, pct.data, log.data],
+    () => (player.data ? buildCard(player.data, season, { percentiles: pct.data, games: log.data?.games, goalieRanks: ranks }) : null),
+    [player.data, season, pct.data, log.data, ranks],
   );
 
   const pastSeasons = useMemo(() => {
@@ -73,7 +82,7 @@ export function PlayerPage() {
   return (
     <>
       <nav className="crumbs" aria-label="Breadcrumb">
-        <Link to={link('/players')}>Players</Link>
+        {isGoalie ? <Link to={link('/goalies')}>Goalies</Link> : <Link to={link('/players')}>Players</Link>}
         <span aria-hidden>/</span>
         <span>{p?.name ?? 'Loading'}</span>
         {p && !isGoalie && <Link className="crumb-action" to={link(`/compare?players=${p.id}`)}>Compare with others</Link>}
@@ -97,6 +106,7 @@ export function PlayerPage() {
             : <Skeleton height={380} />)}
           {log.data ? <FormChart games={games} goalie={isGoalie} /> : <Skeleton height={340} />}
           {p && !isGoalie && <PlayerShots key={`shots-${id}-${season}`} playerId={p.id} season={season} accent={teamAccent(p.team)} />}
+          {p && isGoalie && <GoalieShots key={`gshots-${id}-${season}`} playerId={p.id} season={season} accent={teamAccent(p.team)} />}
           {p && <CareerChart player={p} season={season} />}
           {log.error && <ErrorNotice error={log.error} onRetry={log.retry} />}
           {log.data && <GameLogTable games={games} goalie={isGoalie} />}

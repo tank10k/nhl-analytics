@@ -8,6 +8,7 @@ import { ErrorNotice, Panel, Segmented, Skeleton, SkeletonRows } from '../../com
 import { PlayerCardLoader, percentileMap } from '../../components/PlayerCardLoader';
 import { TeamStripe } from '../../components/TeamChip';
 import { ProductionScatter, per60 } from './ProductionScatter';
+import { usePageTitle } from '../../lib/title';
 
 type Pos = 'all' | 'F' | 'C' | 'L' | 'R' | 'D';
 type GameType = '2' | '3';
@@ -36,6 +37,7 @@ const sortValue = (p: Skater, k: SortKey): number | string =>
   k === 'name' ? p.name : k === 'p60' ? per60(p, p.points) : (p[k] ?? -Infinity);
 
 export function PlayersPage() {
+  usePageTitle('Players');
   const { season, link } = useSeason();
   const [gameType, setGameType] = useState<GameType>('2');
   const [pos, setPos] = useState<Pos>('all');

@@ -5,12 +5,14 @@ import { longDate, todayIso } from '../../lib/games';
 import type { ScoresResponse } from '../../lib/types';
 import { ErrorNotice, Skeleton } from '../../components/Panel';
 import { ScoreTile, useAutoRefresh } from './ScoreTile';
+import { usePageTitle } from '../../lib/title';
 
 /**
  * Scoreboard for one date (today by default). Live games come first, then upcoming,
  * then finals. While anything is live the page refreshes itself every 30 seconds.
  */
 export function GamesPage() {
+  usePageTitle('Games');
   const [params, setParams] = useSearchParams();
   const date = params.get('date') ?? '';
   const scores = useApi<ScoresResponse>(`/api/scores${date ? `?date=${date}` : ''}`);

@@ -66,6 +66,7 @@ const ROUTES = [
   ['/api/player/:id/shots?season=&gameType=', 'Every shot attempt by a skater, with xG'],
   ['/api/scores?date=', 'Games on a date (default today) with scores, state, period and clock'],
   ['/api/game/:id/shots', 'Every shot in one game, with xG, plus the game roster and goal assists'],
+  ['/api/goalie/:id/shots?season=&gameType=', "Unblocked shots a goalie faced, with expected goals against and goals saved above expected"],
   ['/api/game/:id/box', 'Box score: skater and goalie stats for both teams'],
   ['/api/image?src=', 'NHL headshot or logo served from this server (used by player cards)'],
 ];
@@ -165,6 +166,10 @@ async function handleApi(url) {
 
   if ((m = p.match(/^\/api\/player\/(\d+)\/shots$/))) {
     return shots.getPlayerShots(m[1], parseSeason(q.get('season')), parseGameType(q.get('gameType')));
+  }
+
+  if ((m = p.match(/^\/api\/goalie\/(\d+)\/shots$/))) {
+    return shots.getGoalieShots(m[1], parseSeason(q.get('season')), parseGameType(q.get('gameType')));
   }
 
   if (p === '/api/scores') return games.getScores(q.get('date') || '');

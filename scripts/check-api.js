@@ -66,8 +66,9 @@ async function check(name, path, inspect) {
     `${b.total} skaters, hits ${filled(b.players, 'hits')}, blocks ${filled(b.players, 'blocks')}, faceoff% ${filled(b.players, 'faceoffPct')}, TOI ${filled(b.players, 'toiPerGame')}`);
   const player = skaters?.players?.[0];
 
-  await check('goalies', `/api/goalies?season=${season}`, (b) =>
-    `${b.total} goalies, save % ${filled(b.goalies, 'savePct')}, GAA ${filled(b.goalies, 'gaa')}, starts ${filled(b.goalies, 'gs')}`);
+  const goalies = await check('goalies', `/api/goalies?season=${season}`, (b) =>
+    `${b.total} goalies, save % ${filled(b.goalies, 'savePct')}, GAA ${filled(b.goalies, 'gaa')}, starts ${filled(b.goalies, 'gs')}, saves ${filled(b.goalies, 'saves')}, TOI ${filled(b.goalies, 'toi')}`);
+  const goalie = goalies?.goalies?.[0];
 
   await check('percentiles', `/api/percentiles?season=${season}`, (b) =>
     `min ${b.minGp} GP, ${b.poolSize.F} forwards, ${b.poolSize.D} defense ranked`);
@@ -98,6 +99,19 @@ async function check(name, path, inspect) {
   if (player) {
     await check('player shots', `/api/player/${player.id}/shots?season=${season}`, (b) =>
       `${b.shots.length} attempts over ${b.gamesLoaded}/${b.gamesRequested} games, goals ${b.summary.goals} vs xG ${b.summary.xg}`);
+  }
+
+  if (goalie) {
+    await check('goalie shots', `/api/goalie/${goalie.id}/shots?season=${season}`, (b) =>
+      `${b.summary.faced} shots faced over ${b.gamesLoaded}/${b.gamesRequested} games, GA ${b.summary.goalsAgainst} vs xGA ${b.summary.xga} (GSAx ${b.summary.gsax})`);
+  }
+
+  const scores = await check('scores', '/api/scores', (b) =>
+    `${b.date}: ${b.games.length} games, ${b.games.filter((g) => g.live).length} live, previous day ${b.prevDate ?? 'none'}`);
+  const done = scores?.games?.find((g) => g.final) ?? (game ? { id: game.id } : null);
+  if (done) {
+    await check(`game/${done.id}/box`, `/api/game/${done.id}/box`, (b) =>
+      `${b.away.abbrev} ${b.away.skaters.length} skaters / ${b.away.goalies.length} goalies, ${b.home.abbrev} ${b.home.skaters.length} / ${b.home.goalies.length}`);
   }
 
   await check(`team/${team}/shots`, `/api/team/${team}/shots?season=${season}`, (b) =>

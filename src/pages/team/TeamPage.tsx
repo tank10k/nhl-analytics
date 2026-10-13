@@ -14,6 +14,7 @@ import { TeamKpis } from './TeamKpis';
 import { ResultsStrip, RollingForm } from './TeamCharts';
 import { RosterTables, ScheduleLists, Splits } from './TeamTables';
 import { TeamShots } from './TeamShots';
+import { usePageTitle } from '../../lib/title';
 
 export function TeamPage() {
   const { abbrev = '' } = useParams();
@@ -29,6 +30,7 @@ export function TeamPage() {
   const pctAll = useApi<PercentilesTable>(`/api/percentiles?season=${season}`);
 
   const team = standings.data?.teams.find((t) => t.abbrev === code);
+  usePageTitle(team?.name ?? code);
   const teamStats = stats.data?.teams.find((t) => t.abbrev === code);
   const accent = teamAccent(code);
 

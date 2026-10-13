@@ -7,6 +7,7 @@ import { StrengthQuadrant } from './home/StrengthQuadrant';
 import { Leaders } from './home/Leaders';
 import { DivisionTables } from './home/DivisionTables';
 import { TodayStrip } from './games/GamesPage';
+import { usePageTitle } from '../lib/title';
 
 function Lede({ teams, players, isCurrent }: { teams: Team[]; players?: Skater[]; isCurrent: boolean }) {
   const played = teams.filter((t) => t.gp > 0);
@@ -27,6 +28,7 @@ function Lede({ teams, players, isCurrent }: { teams: Team[]; players?: Skater[]
 }
 
 export function Home() {
+  usePageTitle('League overview');
   const { season, isCurrent } = useSeason();
   const standings = useApi<StandingsResponse>(`/api/standings?season=${season}`);
   const skaters = useApi<SkatersResponse>(`/api/skaters?season=${season}&limit=2000`);

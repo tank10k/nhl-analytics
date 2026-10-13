@@ -6,6 +6,7 @@ import { Segmented } from '../../components/Panel';
 import { ComparePlayers } from './ComparePlayers';
 import { CompareTeams } from './CompareTeams';
 import { MAX } from './Pickers';
+import { usePageTitle } from '../../lib/title';
 
 type Mode = 'players' | 'teams';
 
@@ -15,6 +16,7 @@ type Mode = 'players' | 'teams';
  * bookmarked or opened from a player or team page.
  */
 export function ComparePage() {
+  usePageTitle('Compare');
   const { season } = useSeason();
   const [params, setParams] = useSearchParams();
   const mode: Mode = params.get('teams') != null && params.get('players') == null ? 'teams' : 'players';

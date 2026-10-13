@@ -2,7 +2,7 @@ import { Outlet, Route, Routes } from 'react-router';
 import { SeasonProvider } from './lib/season';
 import { Shell } from './components/Shell';
 import { Home } from './pages/Home';
-import { ComingSoon, NotFound } from './pages/ComingSoon';
+import { NotFound } from './pages/NotFound';
 import { PlayersPage } from './pages/players/PlayersPage';
 import { PlayerPage } from './pages/player/PlayerPage';
 import { TeamsPage } from './pages/teams/TeamsPage';
@@ -10,6 +10,7 @@ import { TeamPage } from './pages/team/TeamPage';
 import { ComparePage } from './pages/compare/ComparePage';
 import { GamesPage } from './pages/games/GamesPage';
 import { GamePage } from './pages/game/GamePage';
+import { GoaliesPage } from './pages/goalies/GoaliesPage';
 
 function Root() {
   return (
@@ -32,7 +33,7 @@ export function App() {
           <Route path="compare" element={<ComparePage />} />
           <Route path="games" element={<GamesPage />} />
           <Route path="games/:id" element={<GamePage />} />
-          <Route path="goalies" element={<ComingSoon section="goalies" />} />
+          <Route path="goalies" element={<GoaliesPage />} />
           <Route path="*" element={<NotFound />} />
         </Route>
       </Route>
