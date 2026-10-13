@@ -7,6 +7,7 @@ import { PlayersPage } from './pages/players/PlayersPage';
 import { PlayerPage } from './pages/player/PlayerPage';
 import { TeamsPage } from './pages/teams/TeamsPage';
 import { TeamPage } from './pages/team/TeamPage';
+import { ComparePage } from './pages/compare/ComparePage';
 
 function Root() {
   return (
@@ -26,7 +27,7 @@ export function App() {
           <Route path="teams/:abbrev" element={<TeamPage />} />
           <Route path="players" element={<PlayersPage />} />
           <Route path="players/:id" element={<PlayerPage key="player" />} />
-          <Route path="compare" element={<ComingSoon section="compare" />} />
+          <Route path="compare" element={<ComparePage />} />
           <Route path="games" element={<ComingSoon section="games" />} />
           <Route path="goalies" element={<ComingSoon section="goalies" />} />
           <Route path="*" element={<NotFound />} />

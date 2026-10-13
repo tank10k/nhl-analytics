@@ -69,6 +69,7 @@ export function TeamPage() {
     <div className="team-page" style={theme}>
       <nav className="crumbs" aria-label="Breadcrumb">
         <Link to={link('/teams')}>Teams</Link><span aria-hidden>/</span><span>{team?.name ?? code}</span>
+        {team && <Link className="crumb-action" to={link(`/compare?teams=${code}`)}>Compare with others</Link>}
       </nav>
 
       {standings.error && <ErrorNotice error={standings.error} onRetry={standings.retry} />}

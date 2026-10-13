@@ -73,3 +73,26 @@ export function useApi<T>(path: string | null): ApiState<T> {
     retry,
   };
 }
+
+/** Fetch several paths at once (a list that can change length); results keep the input order. */
+export function useApiMany<T>(paths: string[]): { data: (T | undefined)[]; loading: boolean } {
+  const key = paths.join('|');
+  const [state, setState] = useState<{ key: string; data: (T | undefined)[]; done: boolean }>({ key: '', data: [], done: true });
+
+  useEffect(() => {
+    let live = true;
+    const list = key ? key.split('|') : [];
+    setState((s) => (s.key === key ? s : { key, data: list.map((p) => cache.get(p)?.data as T | undefined), done: false }));
+    // A failed path resolves to undefined so one bad request doesn't hold up the rest.
+    Promise.all(list.map((p) => fetchApi<T>(p).catch(() => undefined))).then((data) => {
+      if (live) setState({ key, data, done: true });
+    });
+    return () => { live = false; };
+  }, [key]);
+
+  const current = state.key === key;
+  return {
+    data: current ? state.data : paths.map((p) => cache.get(p)?.data as T | undefined),
+    loading: !current || !state.done,
+  };
+}

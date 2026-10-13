@@ -151,10 +151,10 @@ export function PlayersPage() {
                     <thead>
                       <tr>
                         <th scope="col" className="rank-col">#</th>
-                        <th scope="col" aria-sort={sort.key === 'name' ? (sort.dir === 1 ? 'ascending' : 'descending') : undefined}>
+                        <th scope="col" className="name-col" aria-sort={sort.key === 'name' ? (sort.dir === 1 ? 'ascending' : 'descending') : undefined}>
                           <button type="button" onClick={() => onSort('name')}>Player</button>
                         </th>
-                        <th scope="col">Pos</th>
+                        <th scope="col" className="pos-col">Pos</th>
                         {COLS.map((c) => (
                           <th key={c.key} scope="col" title={c.title}
                             aria-sort={sort.key === c.key ? (sort.dir === 1 ? 'ascending' : 'descending') : undefined}>
@@ -171,7 +171,7 @@ export function PlayersPage() {
                         return (
                           <tr key={p.id}>
                             <td className="rank">{cur * PAGE + i + 1}</td>
-                            <td>
+                            <td className="name-col">
                               <span className="team-chip">
                                 <TeamStripe abbrev={t} />
                                 <Link className="player-link" to={link(`/players/${p.id}`)}>{p.name}</Link>

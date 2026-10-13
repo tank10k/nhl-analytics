@@ -29,10 +29,11 @@ export function playoffLine(teams: RaceTeam[]): [number, number][] {
  * its end, so identity never rests on color alone. With `focus`, that team is drawn bold
  * and the rest recede to thin gray context lines.
  */
-export function PointsRace({ teams, cutTeams, focus, height = 420 }: {
+export function PointsRace({ teams, cutTeams, focus, colors, height = 420 }: {
   teams: RaceTeam[];       // lines to draw
   cutTeams?: RaceTeam[];   // conference used for the playoff line (omit to hide it)
   focus?: string;          // team to emphasize
+  colors?: Record<string, string>; // override line colors (Compare uses its slot colors)
   height?: number;
 }) {
   const navigate = useNavigate();
@@ -46,7 +47,7 @@ export function PointsRace({ teams, cutTeams, focus, height = 420 }: {
     const series: NonNullable<EChartsOption['series']> = ordered.map((t) => {
       const isFocus = t.abbrev === focus;
       const muted = Boolean(focus) && !isFocus;
-      const color = muted ? 'rgba(168,184,207,0.35)' : teamAccent(t.abbrev);
+      const color = muted ? 'rgba(168,184,207,0.35)' : colors?.[t.abbrev] ?? teamAccent(t.abbrev);
       return {
         name: t.abbrev,
         type: 'line',
@@ -110,7 +111,7 @@ export function PointsRace({ teams, cutTeams, focus, height = 420 }: {
       yAxis: { type: 'value', minInterval: 1, name: 'Points', nameTextStyle: { color: C.ink2, align: 'left', padding: [0, 0, 0, -20] } },
       series,
     };
-  }, [teams, cutTeams, focus]);
+  }, [teams, cutTeams, focus, colors]);
 
   return (
     <EChart

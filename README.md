@@ -2,7 +2,7 @@
 
 A local web app for exploring NHL team and player stats with charts. It runs on your own computer, pulls data from the NHL's public (unofficial) JSON APIs, and shows it in a dark, broadcast-style interface. Personal, non-commercial use.
 
-**Status:** Version 2 is being rebuilt in steps (React + TypeScript + ECharts). Steps 1 to 5 are done: the app shell, design system, search and League overview page; the expanded data layer (player bios, percentiles, schedules, goalies, team stats, shot data and expected goals); the Players hub, player pages and player cards; the Teams hub and team-themed team pages; and the advanced charts (shot maps, danger-zone heat maps, expected-goals trends, a skill-vs-luck quadrant and a standings bump chart). The original app is still available at `/legacy` until each part is replaced.
+**Status:** Version 2 is being rebuilt in steps (React + TypeScript + ECharts). Steps 1 to 6 are done: the app shell, design system, search and League overview page; the expanded data layer (player bios, percentiles, schedules, goalies, team stats, shot data and expected goals); the Players hub, player pages and player cards; the Teams hub and team-themed team pages; and the advanced charts (shot maps, danger-zone heat maps, expected-goals trends, a skill-vs-luck quadrant and a standings bump chart); and the Compare tool for players and teams. The original app is still available at `/legacy` until each part is replaced.
 
 ## Contents
 
@@ -53,7 +53,7 @@ The server only listens on `127.0.0.1`, so it is not reachable from other machin
 | `/teams/TOR` | **Team page**, themed in the team's colors. Banner with record, streak and division/conference/league rank; six key numbers each with a league rank (PDO gets a luck reading instead); points pace against division rivals and the playoff line; every game as a goal-differential bar; rolling goals for and against; splits (home, road, one-goal games, overtime/shootout, blowouts); a **shot map** of every attempt for or against the team with danger-zone heat view and 5-on-5 shot, expected-goals and goal shares; an **expected-goals trend** (rolling xG share against actual goal share); recent results and next games; the top four scorers as cards and the full roster with goalies. | Done (steps 4–5) |
 | `/players` | **Players hub.** Filters (regular season or playoffs, position, team, minimum games, name search); cards for the four leading scorers in whatever the filters select; a production-vs-ice-time scatter (points per 60 minutes against time on ice per game, forwards and defense, click a dot to open the player); a sortable, paged leaderboard with points per 60, power-play points, shooting %, hits and blocks. | Done (step 3) |
 | `/players/ID` | **Player page.** The full player card; a one-line summary; percentile profile (11 measures against the same position); season pace (running points, goals, assists or shots by game number against any earlier season); game-by-game form with a 5-game average; a **shot map** of the player's attempts with goals vs. expected goals; career arc by season; game log. Goalies get save-% versions of form and career. | Done (step 3) |
-| `/compare` | Side-by-side players or teams | Step 6 |
+| `/compare` | **Compare** up to three players or three teams. Players: search to add, a card for each, an overlaid percentile radar (9 measures, each player ranked within his position group), running totals by game number (points, goals, assists or shots), and a head-to-head table with the leader in each row marked ▲. Teams: a tile for each, a radar of where each team stands among all 32 in nine areas, the points race, a head-to-head table, and the season series when two teams are compared. Each player or team keeps one color (blue, orange, green) in every chart. The selection is kept in the address (`/compare?players=8478402,8477934` or `/compare?teams=TOR,BOS`), and player and team pages have a "Compare with others" link. | Done (step 6) |
 | `/games` | Scoreboard, game flow, shot maps | Step 7 |
 | `/goalies` | Goalie leaderboards and cards | Step 8 |
 | `/legacy` | The original app (Teams, Players, Player detail) | Kept until replaced |
@@ -100,7 +100,7 @@ Each step is delivered, tested and pushed before the next one starts.
 3. **Player card + player page** *(done)*: team-colored cards with bio, percentile ranks, last-10 sparkline, career flip side and PNG export; Players hub; player pages with percentile, pace, form and career charts.
 4. **Teams hub + team pages** *(done)*: division tiles, points race with playoff line, team stats table; team pages with pace, results, rolling form, splits, schedule and roster cards.
 5. **Advanced charts** *(done)*: shot maps and danger-zone heat maps on a drawn rink (team and player pages), expected-goals trend, skill-or-luck quadrant, standings bump chart.
-6. **Compare tool:** 2 to 3 players or teams with overlaid radar and trend lines.
+6. **Compare tool** *(done)*: up to three players or teams with overlaid radar, shared trend lines, head-to-head tables and season series.
 7. **Games:** scoreboard, game-flow chart, per-game shot map.
 8. **Goalies, then polish:** goalie cards, animations, performance, final README.
 
@@ -145,6 +145,7 @@ nhl-analytics/
 │   │   ├── hexbin.ts      Hexagonal binning for the heat view
 │   │   ├── LogoScatter.tsx Teams as logos on a quadrant chart (skill or luck)
 │   │   ├── BumpChart.tsx  Conference rank by game number
+│   │   ├── Radar.tsx      Overlaid percentile radar (Compare)
 │   │   └── theme.ts       The "broadcast" chart theme + tooltip helpers
 │   ├── components/        Shell (sidebar/top bar), CommandPalette (Ctrl+K), Panel,
 │   │                      TeamChip/TeamLogo/TeamStripe, PlayerCard, PlayerCardLoader,
@@ -155,6 +156,7 @@ nhl-analytics/
 │       ├── players/       Players hub: PlayersPage, ProductionScatter
 │       ├── player/        Player page: PlayerPage, PercentilePanel, SeasonPace,
 │       │                  FormChart, CareerChart, GameLogTable, PlayerShots
+│       ├── compare/       Compare: ComparePage (mode + address), Pickers, ComparePlayers, CompareTeams
 │       ├── teams/         Teams hub: TeamsPage (tiles, race, stats table)
 │       ├── team/          Team page: TeamPage, TeamHero, TeamKpis, TeamCharts
 │       │                  (results strip, rolling form), TeamShots (shot map, xG trend),
@@ -286,7 +288,7 @@ The server reads its upstream addresses from two environment variables, so it ca
 NHL_WEB_BASE=http://127.0.0.1:4010 NHL_STATS_BASE=http://127.0.0.1:4010 npm start
 ```
 
-Steps 1 to 5 of v2 were built and checked this way against a mock of 32 teams, about 700 invented players, 64 goalies and a 40-day schedule with generated play-by-plays. Checked: desktop and phone widths, the Ctrl+K search, season switching, every API route (via `npm run check`), shot direction normalization, blocked-shot team assignment, xG values, that cached games still load with the NHL unreachable, the Players hub filters and sorting, player pages for skaters, card flip and PNG export, the Teams hub and team pages (including light-colored teams such as Boston, where the banner switches to dark text), unknown team codes, early-season charts with only a few games played, shot maps and their tooltips, the quadrant and bump chart, and phone-width layouts. The mock server is not part of the repo.
+Steps 1 to 6 of v2 were built and checked this way against a mock of 32 teams, about 700 invented players, 64 goalies and a 40-day schedule with generated play-by-plays. Checked: desktop and phone widths, the Ctrl+K search, season switching, every API route (via `npm run check`), shot direction normalization, blocked-shot team assignment, xG values, that cached games still load with the NHL unreachable, the Players hub filters and sorting, player pages for skaters, card flip and PNG export, the Teams hub and team pages (including light-colored teams such as Boston, where the banner switches to dark text), unknown team codes, early-season charts with only a few games played, shot maps and their tooltips, the quadrant and bump chart, the Compare tool (adding, removing and swapping players by search, switching to teams, the season series), and phone-width layouts. The mock server is not part of the repo.
 
 ## Known limitations
 

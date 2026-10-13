@@ -76,6 +76,7 @@ export function PlayerPage() {
         <Link to={link('/players')}>Players</Link>
         <span aria-hidden>/</span>
         <span>{p?.name ?? 'Loading'}</span>
+        {p && !isGoalie && <Link className="crumb-action" to={link(`/compare?players=${p.id}`)}>Compare with others</Link>}
       </nav>
       <header className="page-head">
         <h1 className="page-title">{p?.name ?? <Skeleton height={40} width={320} />}<span className="season">{seasonLabel(season)}</span></h1>
