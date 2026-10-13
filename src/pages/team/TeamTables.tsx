@@ -146,10 +146,12 @@ export function ScheduleLists({ games }: { games: ScheduleGame[] }) {
         </Link>
       ) : <span>TBD</span>}
       {g.result ? (
-        <span className={`sched-res res-${g.result.toLowerCase()}`}>
+        <Link to={link(`/games/${g.id}`)} className={`sched-res res-${g.result.toLowerCase()}`} title="Open this game">
           <b>{g.result === 'W' ? 'W' : g.result === 'OTL' ? (g.decidedIn === 'SO' ? 'SOL' : 'OTL') : 'L'}</b> {g.gf}–{g.ga}
-        </span>
-      ) : <span className="sched-res muted">{g.state === 'LIVE' || g.state === 'CRIT' ? 'Live now' : 'Upcoming'}</span>}
+        </Link>
+      ) : g.state === 'LIVE' || g.state === 'CRIT'
+        ? <Link to={link(`/games/${g.id}`)} className="sched-res">Live now</Link>
+        : <span className="sched-res muted">Upcoming</span>}
     </li>
   );
   return (

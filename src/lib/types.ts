@@ -291,3 +291,71 @@ export interface PlayerShotsResponse {
   columns: string[];
   shots: CompactShot[];
 }
+
+// ---------- Step 7: games ----------
+
+export interface GameTeam {
+  abbrev: string;
+  name: string | null;
+  logo: string | null;
+  score: number | null;
+  sog: number | null;
+}
+
+export interface GameSummary {
+  id: number;
+  date: string | null;
+  start: string | null;        // ISO UTC start time
+  gameType: number | null;
+  state: string | null;        // FUT, PRE, LIVE, CRIT, FINAL, OFF
+  live: boolean;
+  final: boolean;
+  period: number | null;
+  periodType: string | null;   // REG, OT, SO
+  clock: string | null;        // "07:42" remaining in the period
+  intermission: boolean;
+  decidedIn: string | null;
+  venue: string | null;
+  away: GameTeam;
+  home: GameTeam;
+}
+
+export interface ScoresResponse {
+  date: string;
+  prevDate: string | null;
+  nextDate: string | null;
+  anyLive: boolean;
+  games: GameSummary[];
+}
+
+export interface RosterSpot { id: number; team: string; name: string; number: number | null; pos: string | null }
+
+export interface GameDetail {
+  id: number; season: string; gameType: number; date: string; state: string;
+  home: { abbrev: string; score: number | null; logo: string | null };
+  away: { abbrev: string; score: number | null; logo: string | null };
+  lastPeriod: number | null;
+  lastPeriodType: string | null;
+  clock: string | null;
+  intermission: boolean;
+}
+
+export interface GameShotsFull {
+  model: string;
+  game: GameDetail;
+  roster: RosterSpot[];
+  shots: (Shot & { assists?: number[] })[];
+}
+
+export interface BoxSkater {
+  id: number; name: string | null; number: number | null; pos: string | null;
+  goals: number; assists: number; points: number; plusMinus: number | null; pim: number | null;
+  hits: number | null; sog: number | null; blocks: number | null; ppGoals: number | null;
+  faceoffPct: number | null; toi: string | null;
+}
+export interface BoxGoalie {
+  id: number; name: string | null; number: number | null; saves: number | null; shotsAgainst: number | null;
+  goalsAgainst: number | null; savePct: number | null; toi: string | null; decision: string | null; starter: boolean | null;
+}
+export interface BoxSide extends GameTeam { skaters: BoxSkater[]; goalies: BoxGoalie[] }
+export interface BoxResponse { id: number; state: string | null; final: boolean; away: BoxSide; home: BoxSide }

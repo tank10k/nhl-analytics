@@ -7,6 +7,7 @@
 //   lib/cache.js    memory + SQLite disk cache
 //   lib/loaders.js  standings, skaters, goalies, team stats, players, schedules, percentiles
 //   lib/shots.js    play-by-play shots and the expected-goals model
+//   lib/games.js    scoreboard by date and box scores
 //   lib/images.js   same-origin proxy for NHL headshots and logos (for card image export)
 
 const http = require('node:http');
@@ -18,6 +19,7 @@ const cache = require('./lib/cache');
 const L = require('./lib/loaders');
 const shots = require('./lib/shots');
 const images = require('./lib/images');
+const games = require('./lib/games');
 
 const PORT = Number(process.env.PORT) || 3000;
 const HOST = '127.0.0.1'; // local only
@@ -62,7 +64,9 @@ const ROUTES = [
   ['/api/player/:id/gamelog?season=&gameType=', 'Game-by-game log'],
   ['/api/player/:id/percentiles?season=&gameType=', 'One skater\'s percentile ranks'],
   ['/api/player/:id/shots?season=&gameType=', 'Every shot attempt by a skater, with xG'],
-  ['/api/game/:id/shots', 'Every shot in one game, with xG'],
+  ['/api/scores?date=', 'Games on a date (default today) with scores, state, period and clock'],
+  ['/api/game/:id/shots', 'Every shot in one game, with xG, plus the game roster and goal assists'],
+  ['/api/game/:id/box', 'Box score: skater and goalie stats for both teams'],
   ['/api/image?src=', 'NHL headshot or logo served from this server (used by player cards)'],
 ];
 
@@ -163,7 +167,11 @@ async function handleApi(url) {
     return shots.getPlayerShots(m[1], parseSeason(q.get('season')), parseGameType(q.get('gameType')));
   }
 
+  if (p === '/api/scores') return games.getScores(q.get('date') || '');
+
   if ((m = p.match(/^\/api\/game\/(\d+)\/shots$/))) return shots.getGameShots(m[1]);
+
+  if ((m = p.match(/^\/api\/game\/(\d+)\/box$/))) return games.getBox(m[1]);
 
   throw new HttpError(404, 'Unknown API route (see /api for the list)');
 }

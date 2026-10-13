@@ -11,7 +11,7 @@ const NAV = [
   { to: '/teams', label: 'Teams', icon: IconTeams },
   { to: '/players', label: 'Players', icon: IconPlayers },
   { to: '/compare', label: 'Compare', icon: IconCompare },
-  { to: '/games', label: 'Games', icon: IconGames, step: 7 },
+  { to: '/games', label: 'Games', icon: IconGames },
   { to: '/goalies', label: 'Goalies', icon: IconGoalies, step: 8 },
 ];
 

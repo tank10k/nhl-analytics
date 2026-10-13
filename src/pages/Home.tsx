@@ -6,6 +6,7 @@ import { ErrorNotice, Panel, Skeleton } from '../components/Panel';
 import { StrengthQuadrant } from './home/StrengthQuadrant';
 import { Leaders } from './home/Leaders';
 import { DivisionTables } from './home/DivisionTables';
+import { TodayStrip } from './games/GamesPage';
 
 function Lede({ teams, players, isCurrent }: { teams: Team[]; players?: Skater[]; isCurrent: boolean }) {
   const played = teams.filter((t) => t.gp > 0);
@@ -39,6 +40,8 @@ export function Home() {
           ? <Lede teams={teams} players={skaters.data?.players} isCurrent={isCurrent} />
           : !standings.error && <Skeleton height={22} width="min(560px, 90%)" style={{ marginTop: 12 }} />}
       </header>
+
+      {isCurrent && <TodayStrip />}
 
       {standings.error && <ErrorNotice error={standings.error} onRetry={standings.retry} />}
 

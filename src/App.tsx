@@ -8,6 +8,8 @@ import { PlayerPage } from './pages/player/PlayerPage';
 import { TeamsPage } from './pages/teams/TeamsPage';
 import { TeamPage } from './pages/team/TeamPage';
 import { ComparePage } from './pages/compare/ComparePage';
+import { GamesPage } from './pages/games/GamesPage';
+import { GamePage } from './pages/game/GamePage';
 
 function Root() {
   return (
@@ -28,7 +30,8 @@ export function App() {
           <Route path="players" element={<PlayersPage />} />
           <Route path="players/:id" element={<PlayerPage key="player" />} />
           <Route path="compare" element={<ComparePage />} />
-          <Route path="games" element={<ComingSoon section="games" />} />
+          <Route path="games" element={<GamesPage />} />
+          <Route path="games/:id" element={<GamePage />} />
           <Route path="goalies" element={<ComingSoon section="goalies" />} />
           <Route path="*" element={<NotFound />} />
         </Route>
