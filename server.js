@@ -7,6 +7,7 @@
 //   lib/cache.js    memory + SQLite disk cache
 //   lib/loaders.js  standings, skaters, goalies, team stats, players, schedules, percentiles
 //   lib/shots.js    play-by-play shots and the expected-goals model
+//   lib/images.js   same-origin proxy for NHL headshots and logos (for card image export)
 
 const http = require('node:http');
 const fs = require('node:fs');
@@ -16,6 +17,7 @@ const { HttpError, currentSeasonId, parseSeason, parseGameType, parseTeam } = re
 const cache = require('./lib/cache');
 const L = require('./lib/loaders');
 const shots = require('./lib/shots');
+const images = require('./lib/images');
 
 const PORT = Number(process.env.PORT) || 3000;
 const HOST = '127.0.0.1'; // local only
@@ -61,6 +63,7 @@ const ROUTES = [
   ['/api/player/:id/percentiles?season=&gameType=', 'One skater\'s percentile ranks'],
   ['/api/player/:id/shots?season=&gameType=', 'Every shot attempt by a skater, with xG'],
   ['/api/game/:id/shots', 'Every shot in one game, with xG'],
+  ['/api/image?src=', 'NHL headshot or logo served from this server (used by player cards)'],
 ];
 
 async function handleApi(url) {
@@ -224,6 +227,11 @@ const server = http.createServer(async (req, res) => {
   try {
     if (req.method !== 'GET') throw new HttpError(405, 'GET only');
     const url = new URL(req.url, `http://${HOST}`);
+    if (url.pathname === '/api/image') {
+      const img = await images.getImage(url.searchParams.get('src') || '');
+      res.writeHead(200, { 'Content-Type': img.type, 'Cache-Control': 'public, max-age=86400' });
+      return res.end(img.body);
+    }
     if (url.pathname === '/api' || url.pathname.startsWith('/api/')) return sendJson(res, 200, await handleApi(url));
     serveStatic(url.pathname, res);
   } catch (err) {

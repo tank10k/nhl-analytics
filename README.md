@@ -2,7 +2,7 @@
 
 A local web app for exploring NHL team and player stats with charts. It runs on your own computer, pulls data from the NHL's public (unofficial) JSON APIs, and shows it in a dark, broadcast-style interface. Personal, non-commercial use.
 
-**Status:** Version 2 is being rebuilt in steps (React + TypeScript + ECharts). Steps 1 and 2 are done: the app shell, design system, search and League overview page, plus the expanded data layer (player bios, percentiles, schedules, goalies, team stats, shot data and expected goals). The original app is still available at `/legacy` until each part is replaced.
+**Status:** Version 2 is being rebuilt in steps (React + TypeScript + ECharts). Steps 1 to 3 are done: the app shell, design system, search and League overview page; the expanded data layer (player bios, percentiles, schedules, goalies, team stats, shot data and expected goals); and the Players hub, player pages and player cards. The original app is still available at `/legacy` until each part is replaced.
 
 ## Contents
 
@@ -50,7 +50,8 @@ The server only listens on `127.0.0.1`, so it is not reachable from other machin
 |---|---|---|
 | `/` | **League overview.** A one-line summary of who leads the league and the scoring race; a team-strength chart (goals scored vs. allowed per game, team logos as markers, league averages splitting it into four quadrants, click a team to open it); a top-10 scoring leaders list (points, goals, assists, points per game) with team-colored bars; standings by division with a goal-differential bar and the playoff cut line. | Done (step 1) |
 | `/teams`, `/teams/TOR` | Teams hub and team pages themed in team colors | Step 4 |
-| `/players`, `/players/ID` | Leaderboards and player cards | Step 3 |
+| `/players` | **Players hub.** Filters (regular season or playoffs, position, team, minimum games, name search); cards for the four leading scorers in whatever the filters select; a production-vs-ice-time scatter (points per 60 minutes against time on ice per game, forwards and defense, click a dot to open the player); a sortable, paged leaderboard with points per 60, power-play points, shooting %, hits and blocks. | Done (step 3) |
+| `/players/ID` | **Player page.** The full player card; a one-line summary; percentile profile (11 measures against the same position); season pace (running points, goals, assists or shots by game number against any earlier season); game-by-game form with a 5-game average; career arc by season; game log. Goalies get save-% versions of form and career. | Done (step 3) |
 | `/compare` | Side-by-side players or teams | Step 6 |
 | `/games` | Scoreboard, game flow, shot maps | Step 7 |
 | `/goalies` | Goalie leaderboards and cards | Step 8 |
@@ -62,13 +63,22 @@ Throughout the app:
 - **Season picker** (top right) covers 2005-06 to the current season. The season is kept in the address as `?season=20252026`, so any view can be bookmarked, and links between pages carry it along.
 - Sections not yet rebuilt show what's coming and link to the same view in the original app.
 
+### Player cards
+
+Each card is built from the player's profile, percentile ranks and game log (`src/lib/cards.ts` turns the data into what the card shows; `src/components/PlayerCard.tsx` draws it), so every page builds cards the same way.
+
+- **Front:** a hero in the team's primary color with the logo, sweater number and headshot, finished with hem stripes in the team's colors (the stripes across the bottom of a hockey sweater). Below it, on the dark panel so it reads the same for every team: name, position, bio (age, height, weight, shoots, birthplace, draft), the season line (GP, G, A, P, +/− for skaters; GP, W, SV%, GAA, SO for goalies), six percentile bars and a last-10-games sparkline.
+- **Back** ("Show career"): every NHL regular season with career totals, plus awards.
+- **Save as image** downloads whichever side is showing as a PNG at double resolution. Headshots and logos are served through the local server (`/api/image`) so the browser is allowed to draw them into the image. If a photo still can't be drawn, the card is saved without it.
+- A compact version (stat line, three percentile bars, sparkline) is used on the Players hub and will be reused for team rosters and Compare.
+
 ## Revamp plan
 
 Each step is delivered, tested and pushed before the next one starts.
 
 1. **Foundation** *(done)*: Vite + React + TypeScript, design system, 32-team color map, app shell with sidebar and Ctrl+K search, SQLite disk cache, League overview page.
 2. **Data expansion** *(done)*: player bio, percentile ranks by position, team schedules and results, league points race, goalies, team shot and special-teams stats, play-by-play shot data with an expected-goals (xG) model, and an API check script.
-3. **Player card + player page:** team-colored cards with bio, percentile ranks, last-10 sparkline, career arc, PNG export.
+3. **Player card + player page** *(done)*: team-colored cards with bio, percentile ranks, last-10 sparkline, career flip side and PNG export; Players hub; player pages with percentile, pace, form and career charts.
 4. **Teams hub + team pages:** points-pace race, home/road splits, rolling form, roster as cards.
 5. **Advanced charts:** shot maps and heat maps on a drawn rink, PDO and shot-share quadrants, standings bump chart.
 6. **Compare tool:** 2 to 3 players or teams with overlaid radar and trend lines.
@@ -85,7 +95,8 @@ nhl-analytics/
 │   ├── cache.js           Memory + SQLite disk cache (raw responses and computed results)
 │   ├── loaders.js         Standings, skaters, goalies, team stats, players, schedules,
 │   │                      points race, percentiles
-│   └── shots.js           Play-by-play shots, rink normalization, expected-goals model
+│   ├── shots.js           Play-by-play shots, rink normalization, expected-goals model
+│   └── images.js          Same-origin proxy for NHL headshots and logos
 ├── package.json           Scripts and dependencies
 ├── vite.config.mts        Vite: React plugin, dev proxy to server.js
 ├── tsconfig.json          TypeScript settings
@@ -101,17 +112,22 @@ nhl-analytics/
 │   ├── lib/
 │   │   ├── api.ts         Fetch helper + useApi() hook with a short client cache
 │   │   ├── season.tsx     Selected season (from the address) shared by every page
-│   │   ├── teams.ts       Team colors, readable accent color, dark logo helper
+│   │   ├── teams.ts       Team colors, readable accent, ink on team color, hem stripes, dark logos
+│   │   ├── cards.ts       Builds player card data (season totals, percentiles, sparkline)
+│   │   ├── img.ts         Routes NHL images through /api/image
 │   │   ├── types.ts       Shapes of the /api responses
 │   │   └── format.ts      Number, record, percentage and time formatting
 │   ├── charts/
 │   │   ├── EChart.tsx     React wrapper around ECharts (resize, cleanup)
 │   │   └── theme.ts       The "broadcast" chart theme + tooltip helpers
 │   ├── components/        Shell (sidebar/top bar), CommandPalette (Ctrl+K), Panel,
-│   │                      TeamChip/TeamLogo/TeamStripe, Icons
+│   │                      TeamChip/TeamLogo/TeamStripe, PlayerCard, Sparkline, Icons
 │   └── pages/
 │       ├── Home.tsx       League overview
 │       ├── home/          Its parts: StrengthQuadrant, Leaders, DivisionTables
+│       ├── players/       Players hub: PlayersPage, ProductionScatter
+│       ├── player/        Player page: PlayerPage, PercentilePanel, SeasonPace,
+│       │                  FormChart, CareerChart, GameLogTable
 │       └── ComingSoon.tsx Placeholder for sections built in later steps
 ├── public/                The original app (served at /legacy), unchanged
 ├── dist/                  Built app (created by npm run build; not in git)
@@ -175,7 +191,7 @@ All routes are GET; `http://localhost:3000/api` lists them. `season` looks like 
 |---|---|
 | `/api/skaters?season=&gameType=&team=&pos=&q=&sort=&dir=&limit=` | Skaters with goals, assists, points, shots, shooting %, plus/minus, PIM, TOI per game, points per game, even-strength / power-play / shorthanded goals and points, game-winning and OT goals, faceoff %, and (from the NHL's "realtime" report) hits, blocked shots, giveaways, takeaways. `pos` is `C`, `L`, `R`, `D` or `F` (all forwards). Sort fields: `goals`, `assists`, `points`, `shots`, `gp`, `shootingPct`, `plusMinus`, `pim`, `toiPerGame`, `pointsPerGame`, `ppPoints`, `gwg`, `hits`, `blocks`. `limit` 1 to 2000 (default 50). |
 | `/api/goalies?season=&gameType=&team=&minGp=&sort=&dir=&limit=` | Goalies with GP, starts, W-L-OTL, save %, GAA, shutouts, saves, shots against. Sort: `gp`, `wins`, `savePct`, `gaa` (lowest first), `shutouts`, `saves`. |
-| `/api/percentiles?season=&gameType=&pos=F\|D` | Percentile ranks (0 to 100) for every eligible skater on 11 measures, ranked within forwards or defense. Eligible means at least a quarter of the league-high games played (capped at 20 GP). |
+| `/api/percentiles?season=&gameType=&pos=F\|D` | Percentile ranks (1 to 99) for every eligible skater on 11 measures, ranked within forwards or defense. Eligible means at least a quarter of the league-high games played (capped at 20 GP). |
 | `/api/player/:id` | Name, team, number, position, headshot, **bio** (birth date, age, birthplace, height, weight, shoots, draft year/team/round/pick), NHL regular-season and playoff totals per season, awards |
 | `/api/player/:id/gamelog?season=&gameType=` | Game by game: game id, date, opponent, home/road, goals, assists, points, shots, plus/minus, PIM, TOI (goalies: decision, save %, shots and goals against) |
 | `/api/player/:id/percentiles?season=&gameType=` | One skater's values and percentiles, the measure list, and the size of the group they're ranked in |
@@ -186,6 +202,12 @@ All routes are GET; `http://localhost:3000/api` lists them. `season` looks like 
 | Route | Returns |
 |---|---|
 | `/api/game/:id/shots` | Every shot attempt in one game (id like `2025020001`): shooter, team, type, period, time, location, distance, angle, strength, rebound, empty net, xG |
+
+**Images**
+
+| Route | Returns |
+|---|---|
+| `/api/image?src=` | An NHL headshot or logo, fetched and served from this server so cards can be saved as images. Only NHL image hosts are allowed; images are kept in memory and cached by the browser for a day. |
 
 The 11 percentile measures: points, goals, assists, shots, hits, blocked shots and takeaways per 60 minutes of ice time; shooting % (20+ shots); time on ice per game; power-play points per game; plus/minus per game.
 
@@ -233,14 +255,16 @@ The server reads its upstream addresses from two environment variables, so it ca
 NHL_WEB_BASE=http://127.0.0.1:4010 NHL_STATS_BASE=http://127.0.0.1:4010 npm start
 ```
 
-Steps 1 and 2 of v2 were built and checked this way against a mock of 32 teams, about 700 invented players, 64 goalies and a 40-day schedule with generated play-by-plays. Checked: desktop and phone widths, the Ctrl+K search, season switching, every API route (via `npm run check`), shot direction normalization, blocked-shot team assignment, xG values, and that cached games still load with the NHL unreachable. The mock server is not part of the repo.
+Steps 1 to 3 of v2 were built and checked this way against a mock of 32 teams, about 700 invented players, 64 goalies and a 40-day schedule with generated play-by-plays. Checked: desktop and phone widths, the Ctrl+K search, season switching, every API route (via `npm run check`), shot direction normalization, blocked-shot team assignment, xG values, that cached games still load with the NHL unreachable, the Players hub filters and sorting, player pages for skaters, card flip and PNG export, and phone-width layouts. The mock server is not part of the repo.
 
 ## Known limitations
 
 - **Unofficial API.** The NHL can change or remove these endpoints without notice, and its [terms of service](https://www.nhl.com/info/terms-of-service) limit reuse to personal, non-commercial use. If a page shows a "Couldn't load" banner, check the terminal where the server is running.
 - **Real-data check for step 2.** The new routes follow the community API reference but were tested on mock data. Run `npm run check` once against live data: it shows which fields came back filled. Most likely to need a tweak: the realtime report fields (hits, blocks), team-stats name matching, and play-by-play shot fields.
 - **Early-season data is sparse.** In the first weeks many players are tied (tied players share a rank in the leaders list) and the strength chart's teams sit close together. Points per game only counts players with at least 40% of the league-high games played.
-- **Goalies** have data routes now; their pages arrive in step 8. Percentile ranks cover skaters only.
+- **Goalies** have data routes and player pages (card, form, career, game log); their leaderboard arrives in step 8. Percentile ranks cover skaters only.
+- **Card colors follow the player's current team**, also when you look at a past season with another club.
+- **Percentile ranks for the current season** move a lot in the first weeks, and players appear once they reach the minimum games played.
 - **Past seasons** are limited to 2005-06 onward (the shootout era), because older seasons include ties and a different points system.
 - **Logos and headshots** load from NHL servers, so they only appear while online; they are hidden if they fail to load.
 - **Playoffs** data only exists once the playoffs begin, so that option shows an empty state before then.

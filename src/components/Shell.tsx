@@ -9,7 +9,7 @@ import { IconCompare, IconGames, IconGoalies, IconLeague, IconPlayers, IconSearc
 const NAV = [
   { to: '/', label: 'League', icon: IconLeague, end: true },
   { to: '/teams', label: 'Teams', icon: IconTeams, step: 4 },
-  { to: '/players', label: 'Players', icon: IconPlayers, step: 3 },
+  { to: '/players', label: 'Players', icon: IconPlayers },
   { to: '/compare', label: 'Compare', icon: IconCompare, step: 6 },
   { to: '/games', label: 'Games', icon: IconGames, step: 7 },
   { to: '/goalies', label: 'Goalies', icon: IconGoalies, step: 8 },

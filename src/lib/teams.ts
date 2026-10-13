@@ -67,7 +67,7 @@ export function contrast(a: string, b: string): number {
   const [x, y] = [luminance(a), luminance(b)].sort((m, n) => n - m);
   return (x + 0.05) / (y + 0.05);
 }
-function mix(hex: string, toward: string, amount: number): string {
+export function mix(hex: string, toward: string, amount: number): string {
   const a = hexToRgb(hex);
   const b = hexToRgb(toward);
   return '#' + a.map((v, i) => Math.round(v + (b[i] - v) * amount).toString(16).padStart(2, '0')).join('');
@@ -102,4 +102,18 @@ export function teamAccent(abbrev?: string | null): string {
 export function darkLogo(url?: string | null): string | undefined {
   if (!url) return undefined;
   return url.replace(/_light\.svg$/, '_dark.svg');
+}
+
+/** Ink color (white or arena navy) that reads on a team's primary color. */
+export function inkOn(hex: string): string {
+  return contrast(hex, '#ffffff') >= 3 ? '#ffffff' : '#0a1424';
+}
+
+/** Hem-stripe colors for a team: secondary, a light stripe, secondary. White/black secondaries
+ *  are kept (they're what the sweater has); a stripe identical to the primary is swapped. */
+export function hemColors(abbrev?: string | null): [string, string] {
+  const { primary, secondary } = teamColors(abbrev);
+  const s = secondary.toLowerCase() === primary.toLowerCase() ? '#ffffff' : secondary;
+  const light = /^#(ffffff)$/i.test(s) ? primary : '#f4f6f9';
+  return [s, light];
 }
