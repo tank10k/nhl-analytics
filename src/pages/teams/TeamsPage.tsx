@@ -8,6 +8,8 @@ import type { RaceResponse, StandingsResponse, Team, TeamStats, TeamStatsRespons
 import { ErrorNotice, Panel, Segmented, Skeleton } from '../../components/Panel';
 import { TeamLogo } from '../../components/TeamChip';
 import { PointsRace } from '../../charts/PointsRace';
+import { LogoScatter, type LogoPoint } from '../../charts/LogoScatter';
+import { BumpChart } from '../../charts/BumpChart';
 
 const DIVISION_ORDER = ['Atlantic', 'Metropolitan', 'Central', 'Pacific'];
 const divOrder = (d: string) => { const i = DIVISION_ORDER.indexOf(d); return i === -1 ? 99 : i; };
@@ -116,6 +118,28 @@ export function TeamsPage() {
   }, [teams]);
 
   const [raceDiv, setRaceDiv] = useState<string>('');
+  const conferences = useMemo(() => [...new Set(teams.map((t) => t.conference))].sort(), [teams]);
+  const [bumpConf, setBumpConf] = useState<string>('');
+  const activeConf = bumpConf || conferences[0] || '';
+
+  // Luck vs. skill: shot share (does the team control play?) against PDO (are the
+  // bounces going its way?). PDO tends to drift back to 1.000; shot share is sticky.
+  const luckPoints = useMemo<LogoPoint[]>(() => (stats.data?.teams ?? [])
+    .filter((t) => t.abbrev && t.shotShare != null && t.pdo != null && t.gp > 0)
+    .map((t) => ({
+      abbrev: t.abbrev!,
+      name: t.name,
+      logo: t.logo,
+      x: t.shotShare! * 100,
+      y: t.pdo! * 1000,
+      rows: [
+        ['Shot share', fmtPct(t.shotShare)],
+        ['PDO', (t.pdo! * 1000).toFixed(0)],
+        ['Shooting %', fmtPct(t.shootingPct)],
+        ['Save %', t.savePct != null ? t.savePct.toFixed(3).replace(/^0/, '') : '–'],
+        ['Points %', fmtPct3(t.pointPct)],
+      ] as [string, string][],
+    })), [stats.data]);
   const activeDiv = raceDiv || divisions[0]?.name || '';
   const raceTeams = race.data?.teams.filter((t) => t.division === activeDiv) ?? [];
   const confTeams = race.data?.teams.filter((t) => t.conference === raceTeams[0]?.conference) ?? [];
@@ -152,6 +176,38 @@ export function TeamsPage() {
               : race.data ? <PointsRace teams={raceTeams} cutTeams={confTeams} />
               : <><Skeleton height={420} /><p className="table-note">Loading all 32 schedules. The first load of a season takes a few seconds.</p></>}
           </Panel>
+
+          <div className="grid-2 hub-advanced">
+            <Panel
+              title="Skill or luck?"
+              sub="Shot share (who controls play) against PDO (shooting % plus save %). PDO usually drifts back toward 1000, so teams high on it tend to cool off; shot share holds up."
+            >
+              {stats.data ? (luckPoints.length ? (
+                <LogoScatter
+                  points={luckPoints}
+                  xName="Shot share, % of shots on goal →"
+                  yName="PDO ↑"
+                  xMid={50}
+                  yMid={1000}
+                  xFmt={(v) => `${Number.isInteger(Math.round(v * 10) / 10) ? v.toFixed(0) : v.toFixed(1)}%`}
+                  yFmt={(v) => v.toFixed(0)}
+                  corners={{ tr: 'Good and lucky', tl: 'Riding the bounces', br: 'Better than the record', bl: 'Real trouble' }}
+                  ariaLabel="Scatter of team shot share against PDO"
+                />
+              ) : <p className="empty">Not enough games yet.</p>) : <Skeleton height={440} />}
+            </Panel>
+            <Panel
+              title="Standings over time"
+              sub="Conference rank after each game number. Hover a line to follow one team; the dashed line is the playoff cut (top 8)."
+              tools={conferences.length > 1 && (
+                <Segmented label="Conference" value={activeConf} onChange={setBumpConf}
+                  options={conferences.map((c) => ({ value: c, label: c }))} />
+              )}
+            >
+              {race.data ? <BumpChart teams={race.data.teams.filter((t) => t.conference === activeConf)} />
+                : race.error ? <ErrorNotice error={race.error} onRetry={race.retry} /> : <Skeleton height={460} />}
+            </Panel>
+          </div>
 
           <div className="section-head"><h2>Team stats</h2><p>Shots, finishing, goaltending and special teams. Select a column to sort.</p></div>
           <Panel title="Underlying numbers" sub="Shot share above 50% means a team outshoots its opponents. PDO near 1000 is normal; far from it usually evens out.">

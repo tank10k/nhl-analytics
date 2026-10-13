@@ -919,3 +919,66 @@ kbd {
   .th-ranks dd { font-size: 24px; }
   .th-points dd { font-size: 32px; }
 }
+
+/* ============ Shot maps ============ */
+
+.shotmap { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.shotmap-tools { display: flex; flex-wrap: wrap; gap: 8px; }
+.shotmap-stage { position: relative; }
+.shotmap-stage svg { display: block; width: 100%; height: auto; max-height: 560px; }
+.rink-ice { fill: #13243f; }
+.rink-boards { fill: none; stroke: #3a5274; stroke-width: 0.6; }
+.rink-red { stroke: rgba(229, 72, 77, 0.55); }
+.rink-blue { stroke: rgba(77, 163, 255, 0.55); }
+.rink-line-blue-thin { fill: none; stroke: rgba(77, 163, 255, 0.35); stroke-width: 0.3; }
+.rink-circle { fill: none; stroke: rgba(229, 72, 77, 0.4); stroke-width: 0.3; }
+.rink-dot { fill: rgba(229, 72, 77, 0.55); }
+.rink-crease { fill: rgba(77, 163, 255, 0.18); stroke: rgba(229, 72, 77, 0.5); stroke-width: 0.25; }
+.rink-net { fill: none; stroke: var(--ink-2); stroke-width: 0.35; }
+.shotmap-stage circle, .shotmap-stage path[transform] { cursor: crosshair; }
+
+.shotmap-tip {
+  position: absolute;
+  transform: translate(12px, 12px);
+  pointer-events: none;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface-2);
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.45);
+  z-index: 5;
+}
+
+.shotmap-legend { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 16px; font-size: var(--fs-xs); color: var(--ink-2); }
+.shotmap-legend span { display: inline-flex; align-items: center; gap: 6px; }
+.lg-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+.lg-save { background: var(--ink-2); opacity: 0.6; }
+.lg-miss { border: 1.5px solid var(--ink-3); }
+.lg-block { width: 5px; height: 5px; background: var(--ink-3); opacity: 0.6; }
+.lg-note { color: var(--ink-3); }
+.lg-ramp { width: 90px; height: 8px; border-radius: 4px; background: linear-gradient(90deg, rgba(57,135,229,0.12), rgba(57,135,229,0.95)); }
+
+.shotmap-stats { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 8px; margin: 0; padding-top: 12px; border-top: 1px solid var(--line-soft); }
+.shotmap-stats dt { font-size: var(--fs-xs); color: var(--ink-3); }
+.shotmap-stats dd { margin: 2px 0 0; font: 700 22px/1 var(--font-display); }
+
+.shot-layout { display: grid; grid-template-columns: minmax(0, 1fr) 280px; gap: 22px; align-items: start; }
+.share-col { display: grid; gap: 12px; }
+.share-tile { display: flex; flex-direction: column; gap: 4px; padding: 12px 14px; border: 1px solid var(--line-soft); border-radius: var(--r-md); background: var(--arena); }
+.share-bar { position: relative; display: block; height: 6px; border-radius: 3px; background: var(--surface-2); margin: 4px 0 2px; }
+.share-bar span { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 3px; background: var(--team-accent, var(--series-1)); }
+.share-bar i { position: absolute; left: 50%; top: -3px; bottom: -3px; width: 1px; background: var(--ink-2); }
+.share-help { margin: 0; font-size: var(--fs-xs); color: var(--ink-3); }
+
+.hub-advanced { margin: 16px 0; }
+
+@media (max-width: 1100px) {
+  .shot-layout { grid-template-columns: minmax(0, 1fr); }
+  .share-col { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .share-help { grid-column: 1 / -1; }
+  .hub-advanced { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 620px) {
+  .shotmap-stats { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .share-col { grid-template-columns: minmax(0, 1fr); }
+}

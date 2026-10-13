@@ -13,6 +13,7 @@ import { TeamHero } from './TeamHero';
 import { TeamKpis } from './TeamKpis';
 import { ResultsStrip, RollingForm } from './TeamCharts';
 import { RosterTables, ScheduleLists, Splits } from './TeamTables';
+import { TeamShots } from './TeamShots';
 
 export function TeamPage() {
   const { abbrev = '' } = useParams();
@@ -91,6 +92,8 @@ export function TeamPage() {
         <Panel title="Recent form" sub="Rolling goals for and against per game">
           {schedule.data ? <RollingForm games={schedule.data.games} accent={accent} /> : <Skeleton height={260} />}
         </Panel>
+
+        {team && <TeamShots team={code} season={season} accent={accent} />}
 
         <Panel title="Splits" sub="Where and how the points come">
           {schedule.data ? <Splits games={schedule.data.games} /> : <Skeleton height={220} />}

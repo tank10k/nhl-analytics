@@ -12,6 +12,8 @@ import { SeasonPace } from './SeasonPace';
 import { FormChart } from './FormChart';
 import { CareerChart } from './CareerChart';
 import { GameLogTable } from './GameLogTable';
+import { PlayerShots } from './PlayerShots';
+import { teamAccent } from '../../lib/teams';
 
 function Lede({ player, season, pct }: { player: Player; season: string; pct?: PlayerPercentiles }) {
   const s = seasonTotals(player.seasons, season);
@@ -90,9 +92,10 @@ export function PlayerPage() {
             <div className="notice notice-quiet"><p>No skater stats for {seasonLabel(season)}, so there are no percentile ranks to show.</p></div>
           )}
           {p && !isGoalie && (log.data
-            ? <SeasonPace key={`${id}-${season}`} playerId={p.id} season={season} games={games} pastSeasons={pastSeasons} />
+            ? <SeasonPace key={`pace-${id}-${season}`} playerId={p.id} season={season} games={games} pastSeasons={pastSeasons} />
             : <Skeleton height={380} />)}
           {log.data ? <FormChart games={games} goalie={isGoalie} /> : <Skeleton height={340} />}
+          {p && !isGoalie && <PlayerShots key={`shots-${id}-${season}`} playerId={p.id} season={season} accent={teamAccent(p.team)} />}
           {p && <CareerChart player={p} season={season} />}
           {log.error && <ErrorNotice error={log.error} onRetry={log.retry} />}
           {log.data && <GameLogTable games={games} goalie={isGoalie} />}
