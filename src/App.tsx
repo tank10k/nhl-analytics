@@ -5,6 +5,8 @@ import { Home } from './pages/Home';
 import { ComingSoon, NotFound } from './pages/ComingSoon';
 import { PlayersPage } from './pages/players/PlayersPage';
 import { PlayerPage } from './pages/player/PlayerPage';
+import { TeamsPage } from './pages/teams/TeamsPage';
+import { TeamPage } from './pages/team/TeamPage';
 
 function Root() {
   return (
@@ -20,8 +22,8 @@ export function App() {
       <Route element={<Root />}>
         <Route element={<Shell />}>
           <Route index element={<Home />} />
-          <Route path="teams" element={<ComingSoon section="teams" />} />
-          <Route path="teams/:abbrev" element={<ComingSoon section="teams" />} />
+          <Route path="teams" element={<TeamsPage />} />
+          <Route path="teams/:abbrev" element={<TeamPage />} />
           <Route path="players" element={<PlayersPage />} />
           <Route path="players/:id" element={<PlayerPage key="player" />} />
           <Route path="compare" element={<ComingSoon section="compare" />} />

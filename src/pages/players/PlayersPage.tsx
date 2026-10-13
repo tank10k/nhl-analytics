@@ -2,11 +2,10 @@ import { useMemo, useState } from 'react';
 import { Link } from 'react-router';
 import { useApi } from '../../lib/api';
 import { useSeason } from '../../lib/season';
-import { buildCard } from '../../lib/cards';
 import { fmtDec, fmtPct, fmtSigned, fmtToi, seasonLabel } from '../../lib/format';
-import type { GameLogEntry, Player, PlayerPercentiles, Skater, SkatersResponse } from '../../lib/types';
+import type { PlayerPercentiles, Skater, SkatersResponse } from '../../lib/types';
 import { ErrorNotice, Panel, Segmented, Skeleton, SkeletonRows } from '../../components/Panel';
-import { PlayerCard } from '../../components/PlayerCard';
+import { PlayerCardLoader, percentileMap } from '../../components/PlayerCardLoader';
 import { TeamStripe } from '../../components/TeamChip';
 import { ProductionScatter, per60 } from './ProductionScatter';
 
@@ -35,16 +34,6 @@ const COLS: { key: SortKey; label: string; title: string; fmt: (p: Skater) => st
 
 const sortValue = (p: Skater, k: SortKey): number | string =>
   k === 'name' ? p.name : k === 'p60' ? per60(p, p.points) : (p[k] ?? -Infinity);
-
-/** One compact card; loads the profile and last games itself. */
-function TopCard({ id, season, pct }: { id: number; season: string; pct?: PlayerPercentiles }) {
-  const { link } = useSeason();
-  const player = useApi<Player>(`/api/player/${id}`);
-  const log = useApi<{ games: GameLogEntry[] }>(`/api/player/${id}/gamelog?season=${season}`);
-  if (!player.data) return <Skeleton height={430} style={{ borderRadius: 14 }} />;
-  const card = buildCard(player.data, season, { percentiles: pct, games: log.data?.games });
-  return <PlayerCard card={card} size="compact" href={link(`/players/${id}`)} />;
-}
 
 export function PlayersPage() {
   const { season, link } = useSeason();
@@ -83,12 +72,7 @@ export function PlayersPage() {
   }, [filtered, sort]);
 
   const top = useMemo(() => [...filtered].sort((a, b) => b.points - a.points || a.gp - b.gp).slice(0, 4), [filtered]);
-  const pctById = useMemo(() => {
-    const m = new Map<number, PlayerPercentiles>();
-    const d = pctAll.data;
-    if (d) for (const p of d.players) m.set(p.id, { ...p, season, gameType: '2', minGp: d.minGp, poolSize: d.poolSize[p.group], metrics: d.metrics });
-    return m;
-  }, [pctAll.data, season]);
+  const pctById = useMemo(() => percentileMap(pctAll.data, season), [pctAll.data, season]);
 
   const pages = Math.max(1, Math.ceil(sorted.length / PAGE));
   const cur = Math.min(page, pages - 1);
@@ -145,7 +129,7 @@ export function PlayersPage() {
             <div className="card-row">{[0, 1, 2, 3].map((i) => <Skeleton key={i} height={430} style={{ borderRadius: 14 }} />)}</div>
           ) : top.length ? (
             <div className="card-row">
-              {top.map((p) => <TopCard key={`${p.id}-${season}`} id={p.id} season={season} pct={pctById.get(p.id)} />)}
+              {top.map((p) => <PlayerCardLoader key={`${p.id}-${season}`} id={p.id} season={season} pct={pctById.get(p.id)} />)}
             </div>
           ) : <p className="empty">No players match these filters.</p>}
 

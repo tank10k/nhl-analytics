@@ -5,18 +5,11 @@ import { C, tipEnd, tipHead, tipRow } from '../../charts/theme';
 import { Panel } from '../../components/Panel';
 import { chronological } from '../../lib/cards';
 import { fmtSv } from '../../lib/format';
+import { trailing } from '../../lib/stats';
 import type { GameLogEntry } from '../../lib/types';
 
 const WINDOW = 5;
 const shortDate = (d: string) => new Date(`${d}T12:00:00`).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
-
-function rolling(values: (number | null)[], w: number): (number | null)[] {
-  return values.map((_, i) => {
-    if (i < w - 1) return null;
-    const win = values.slice(i - w + 1, i + 1).filter((v): v is number => v != null);
-    return win.length ? Math.round((win.reduce((a, v) => a + v, 0) / win.length) * 100) / 100 : null;
-  });
-}
 
 /**
  * Game-by-game form. Skaters: points per game as bars with a 5-game rolling average.
@@ -27,9 +20,9 @@ export function FormChart({ games, goalie }: { games: GameLogEntry[]; goalie: bo
     const g = chronological(games);
     const cats = g.map((x) => `${shortDate(x.date)} ${x.homeRoad === 'H' ? 'vs' : '@'} ${x.opp}`);
     const per = g.map((x) => (goalie ? x.savePct : x.points));
-    const avg = rolling(per, WINDOW);
+    const avg = trailing(per, WINDOW).map((v) => (v == null ? null : Math.round(v * 100) / 100));
     const perName = goalie ? 'Save % that game' : 'Points that game';
-    const avgName = `${WINDOW}-game average`;
+    const avgName = `Average of last ${WINDOW} games`;
 
     return {
       grid: { left: 8, right: 12, top: 36, bottom: 8, containLabel: true },
@@ -65,7 +58,7 @@ export function FormChart({ games, goalie }: { games: GameLogEntry[]; goalie: bo
         goalie
           ? { name: perName, type: 'scatter', data: per, symbolSize: 7, itemStyle: { color: C.series[0] } }
           : { name: perName, type: 'bar', data: per, barMaxWidth: 14, itemStyle: { color: C.series[0], borderRadius: [3, 3, 0, 0] } },
-        { name: avgName, type: 'line', data: avg, connectNulls: false, lineStyle: { color: C.series[1], width: 2 }, itemStyle: { color: C.series[1] }, symbol: 'none' },
+        { name: avgName, type: 'line', data: avg, connectNulls: false, symbol: 'circle', showSymbol: g.length <= 10, symbolSize: 6, lineStyle: { color: C.series[1], width: 2 }, itemStyle: { color: C.series[1] } },
       ],
     };
   }, [games, goalie]);

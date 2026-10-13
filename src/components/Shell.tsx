@@ -8,7 +8,7 @@ import { IconCompare, IconGames, IconGoalies, IconLeague, IconPlayers, IconSearc
 // `step` marks sections that later build steps fill in.
 const NAV = [
   { to: '/', label: 'League', icon: IconLeague, end: true },
-  { to: '/teams', label: 'Teams', icon: IconTeams, step: 4 },
+  { to: '/teams', label: 'Teams', icon: IconTeams },
   { to: '/players', label: 'Players', icon: IconPlayers },
   { to: '/compare', label: 'Compare', icon: IconCompare, step: 6 },
   { to: '/games', label: 'Games', icon: IconGames, step: 7 },

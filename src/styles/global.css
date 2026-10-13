@@ -804,3 +804,118 @@ kbd {
   .search-field { margin-left: 0; width: 100%; }
   .input { width: 100%; }
 }
+
+/* ============ Teams hub ============ */
+
+.division-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; margin-bottom: 16px; }
+.division-title { margin: 0 0 10px; font: 700 22px/1 var(--font-display); display: flex; align-items: baseline; gap: 8px; }
+.division-title small { font: 500 13px/1 var(--font-body); color: var(--ink-3); }
+.tile-list { display: grid; gap: 6px; }
+.team-tile {
+  position: relative;
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px 10px 16px;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--r-md);
+  background: var(--surface-1);
+  text-decoration: none;
+  overflow: hidden;
+}
+.team-tile::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: var(--tile-accent); }
+.team-tile:hover { background: var(--surface-2); border-color: var(--line); }
+.tt-main { display: flex; flex-direction: column; min-width: 0; }
+.tt-name { font: 600 17px/1.15 var(--font-display); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tt-meta { font-size: var(--fs-xs); color: var(--ink-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tt-pts { display: flex; flex-direction: column; align-items: flex-end; line-height: 1; }
+.tt-pts b { font: 700 24px/1 var(--font-display); }
+.tt-pts small { font-size: 11px; color: var(--ink-3); }
+
+/* ============ Team page ============ */
+
+.team-hero {
+  position: relative;
+  border-radius: 14px;
+  overflow: hidden;
+  background:
+    radial-gradient(90% 140% at 90% 0%, rgba(255, 255, 255, 0.16), transparent 55%),
+    linear-gradient(120deg, var(--team-primary) 0%, var(--team-primary) 40%, var(--team-deep) 100%);
+  color: var(--team-ink);
+  margin-bottom: 16px;
+}
+.th-inner { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 24px; padding: 24px 28px 40px; }
+.th-logo { filter: drop-shadow(0 6px 16px rgba(0, 0, 0, 0.35)); }
+.th-season { font-size: var(--fs-sm); opacity: 0.85; }
+.th-name { margin: 4px 0 6px; font: 700 52px/0.95 var(--font-display); letter-spacing: -0.01em; }
+.th-record { margin: 0; display: flex; flex-wrap: wrap; gap: 4px 18px; font: 600 20px/1.2 var(--font-display); }
+.th-record span { font: 500 15px/1.4 var(--font-body); opacity: 0.9; }
+.th-ranks { display: grid; grid-template-columns: repeat(4, auto); gap: 4px 22px; margin: 0; text-align: center; }
+.th-ranks dt { font-size: var(--fs-xs); opacity: 0.85; }
+.th-ranks dd { margin: 2px 0 0; font: 700 30px/1 var(--font-display); }
+.th-points dd { font-size: 46px; }
+.th-hem { padding-bottom: 8px; }
+
+/* team-tinted accents inside a team page */
+.team-page .seg button[aria-pressed='true'] { background: color-mix(in srgb, var(--team-accent) 30%, var(--surface-3)); }
+
+.kpi-row { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 12px; margin-bottom: 16px; }
+.kpi {
+  display: flex; flex-direction: column; gap: 4px;
+  padding: 14px 16px;
+  border: 1px solid var(--line-soft);
+  border-top: 3px solid var(--team-accent);
+  border-radius: var(--r-md);
+  background: var(--surface-1);
+}
+.kpi-label { font-size: var(--fs-xs); color: var(--ink-3); }
+.kpi-value { font: 700 32px/1 var(--font-display); }
+.kpi-note { font-size: var(--fs-xs); color: var(--ink-2); }
+.kpi-note b { color: var(--ink-1); }
+
+.team-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.team-grid .span-2 { grid-column: 1 / -1; }
+
+.splits .split-label { display: block; font-weight: 600; }
+.split-note { display: block; color: var(--ink-3); font-size: 11px; }
+.split-bar-cell { width: 90px; }
+.split-bar { position: relative; display: block; width: 80px; height: 6px; border-radius: 3px; background: var(--surface-2); }
+.split-bar span { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 3px; background: var(--team-accent); }
+.split-bar i { position: absolute; left: 50%; top: -3px; bottom: -3px; width: 1px; background: var(--ink-3); }
+
+.sched { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; }
+.sched-h { margin: 0 0 8px; font: 600 15px/1 var(--font-display); color: var(--ink-3); letter-spacing: 0.03em; }
+.sched-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+.sched-row { display: grid; grid-template-columns: 92px 20px minmax(0, 1fr) auto; align-items: center; gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--line-soft); font-size: var(--fs-sm); }
+.sched-row:last-child { border-bottom: 0; }
+.sched-date { color: var(--ink-3); }
+.sched-ha { color: var(--ink-3); font-size: var(--fs-xs); }
+.sched-res { font-variant-numeric: tabular-nums; padding-left: 8px; border-left: 3px solid transparent; }
+.sched-res b { font-family: var(--font-display); font-size: 15px; }
+.res-w { border-left-color: var(--diverge-pos); }
+.res-l, .res-otl { border-left-color: var(--diverge-neg); }
+
+.roster-panel { margin-top: 16px; }
+.roster-tables { display: grid; gap: 22px; }
+.roster-cap { caption-side: top; text-align: left; font: 700 18px/1 var(--font-display); padding-bottom: 10px; }
+
+@media (max-width: 1200px) {
+  .division-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .kpi-row { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+@media (max-width: 900px) {
+  .team-grid, .sched { grid-template-columns: minmax(0, 1fr); }
+  .th-inner { grid-template-columns: auto minmax(0, 1fr); }
+  .th-ranks { grid-column: 1 / -1; justify-content: start; text-align: left; }
+}
+@media (max-width: 620px) {
+  .division-grid { grid-template-columns: minmax(0, 1fr); }
+  .kpi-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .th-logo { width: 64px; height: 64px; }
+  .th-name { font-size: 36px; }
+  .th-inner { padding: 18px 18px 36px; gap: 14px; }
+  .th-ranks { grid-template-columns: repeat(4, auto); gap: 4px 16px; }
+  .th-ranks dd { font-size: 24px; }
+  .th-points dd { font-size: 32px; }
+}
